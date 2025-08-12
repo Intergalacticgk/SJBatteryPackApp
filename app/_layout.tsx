@@ -1,12 +1,10 @@
-// app/_layout.tsx
 import { Stack } from 'expo-router';
 
 export default function RootLayout() {
   return (
+    // You must render <Slot /> or a navigator here so children routes can mount
     <Stack>
-      {/* This will render the tabs navigator */}
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      {/* Not Found Screen */}
       <Stack.Screen name="+not-found" />
     </Stack>
   );
