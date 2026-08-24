@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "766194485121",
+    "project_id": "sj-battery-pack",
+    "storage_bucket": "sj-battery-pack.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:766194485121:android:d031c74a71d0d7d5a54a80",
+        "android_client_info": {
+          "package_name": "com.sjbatterypack.myapp"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "766194485121-tva7it4bugbk1tb08if3f9kcbl6s5cn2.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.sjbatterypack.myapp",
+            "certificate_hash": "bbdf000cedd0a86367c7e8820f55e68df4fa1491"
+          }
+        },
+        {
+          "client_id": "766194485121-p51pktavs4t1rbcti5t5nnbs5taftunk.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDL9wKUvtle5T7i-9dvAVbpvybxWYZrS9Y"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "766194485121-p51pktavs4t1rbcti5t5nnbs5taftunk.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

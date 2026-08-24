@@ -1,0 +1,43 @@
+import Matter from 'matter-js';
+
+export const GameSystems = (entities, { touches, screen }) => {
+  let engine = entities.physics.engine;
+  let puck = entities.puck.body;
+  let player = entities.player.body;
+  let ai = entities.ai.body;
+
+  const tableWidth = screen.width - 20;
+  const tableHeight = screen.height - 150;
+
+  // 1. Track User Touch to Move Player Mallet
+  let moveTouch = touches.find(t => t.type === 'move' || t.type === 'start');
+  if (moveTouch) {
+    let targetX = moveTouch.event.locationX;
+    let targetY = moveTouch.event.locationY;
+
+    // Constrain player paddle strictly to their half of the rink layout
+    if (targetX > 20 && targetX < tableWidth) {
+      Matter.Body.setPosition(player, { x: targetX, y: Math.max(tableHeight / 2 + 30, Math.min(targetY, tableHeight - 20)) });
+    }
+  }
+
+  // 2. Automated Basic AI Tracker Loop
+  // The computer tracks the puck horizontal speed but stays strictly on its upper half
+  let aiSpeed = 4.5; 
+  if (puck.position.y < tableHeight / 2) {
+    if (ai.position.x < puck.position.x - 10) {
+      Matter.Body.setVelocity(ai, { x: aiSpeed, y: 0 });
+    } else if (ai.position.x > puck.position.x + 10) {
+      Matter.Body.setVelocity(ai, { x: -aiSpeed, y: 0 });
+    }
+  } else {
+    // Return to baseline center position when puck is on player's side
+    if (ai.position.x < tableWidth / 2 - 5) Matter.Body.setVelocity(ai, { x: 2, y: 0 });
+    if (ai.position.x > tableWidth / 2 + 5) Matter.Body.setVelocity(ai, { x: -2, y: 0 });
+  }
+
+  // 3. Keep the Puck Engine simulation running smoothly
+  Matter.Engine.update(engine, 1000 / 60);
+
+  return entities;
+};

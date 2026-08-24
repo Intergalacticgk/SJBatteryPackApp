@@ -1,22 +1,35 @@
 {
   "expo": {
-    "name": "SJBatteryPackApp",
+    "name": "SJ Battery Pack",
     "slug": "SJBatteryPackApp",
-    "version": "1.0.0",
+    "scheme": "sjbatterypack",
+    "version": "1.0.9",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "sjbatterypackapp",
-    "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/images/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#001E22"
+    },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": false,
+      "bundleIdentifier": "com.sjbatterypack.myapp",
+      "buildNumber": "1.0.11",
+      "usesAppleSignIn": true,
+      "icon": "./assets/images/icon.png",
+      "infoPlist": {
+        "NSCameraUsageDescription": "SJ Battery Pack needs camera access to scan gameday QR codes and collect digital win passport stamps."
+      }
     },
     "android": {
+      "package": "com.sjbatterypack.myapp",
+      "versionCode": 33,
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
-      },
-      "edgeToEdgeEnabled": true
+        "foregroundImage": "./assets/images/adaptive-foreground.png",
+        "backgroundColor": "#001E22"
+      }
     },
     "web": {
       "bundler": "metro",
@@ -26,17 +39,33 @@
     "plugins": [
       "expo-router",
       [
+        "expo-camera",
+        {
+          "cameraPermission": "SJ Battery Pack needs camera access to scan gameday QR codes and collect digital win passport stamps."
+        }
+      ],
+      [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
+          "image": "./assets/images/splash.png",
+          "imageWidth": 240,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "backgroundColor": "#001E22"
         }
-      ]
+      ],
+      "expo-web-browser",
+      "expo-font",
+      "@react-native-google-signin/google-signin",
+      "expo-apple-authentication"
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "d4824861-c576-4382-91d9-c7ef0f26cf5f"
+      }
     }
   }
 }
