@@ -6,6 +6,8 @@ interface StandingRow {
   rank: number;
   abbr: string;
   name: string;
+  badgeBg: string;
+  badgeText: string;
   gp: number;
   w: number;
   l: number;
@@ -13,52 +15,50 @@ interface StandingRow {
   sol: number;
   pts: number;
   pct: string;
-  gf: number;
-  ga: number;
   diff: string;
   isCuda: boolean;
 }
 
 const OFFICIAL_STANDINGS: Record<string, StandingRow[]> = {
   PACIFIC: [
-    { rank: 1, abbr: 'ONT', name: 'Reign', gp: 72, w: 47, l: 20, otl: 3, sol: 2, pts: 99, pct: '.688', gf: 237, ga: 187, diff: '+50', isCuda: false },
-    { rank: 2, abbr: 'COL', name: 'Eagles', gp: 72, w: 41, l: 20, otl: 6, sol: 5, pts: 93, pct: '.646', gf: 237, ga: 198, diff: '+39', isCuda: false },
-    { rank: 3, abbr: 'HSK', name: 'Silver Knights', gp: 72, w: 39, l: 21, otl: 7, sol: 5, pts: 90, pct: '.625', gf: 263, ga: 225, diff: '+38', isCuda: false },
-    { rank: 4, abbr: 'CV', name: 'Firebirds', gp: 72, w: 41, l: 25, otl: 6, sol: 0, pts: 88, pct: '.611', gf: 235, ga: 218, diff: '+17', isCuda: false },
-    { rank: 5, abbr: 'BAK', name: 'Condors', gp: 72, w: 37, l: 23, otl: 11, sol: 1, pts: 86, pct: '.597', gf: 244, ga: 236, diff: '+8', isCuda: false },
-    { rank: 6, abbr: 'SJ', name: 'Barracuda', gp: 72, w: 40, l: 28, otl: 2, sol: 2, pts: 84, pct: '.583', gf: 243, ga: 230, diff: '+13', isCuda: true },
-    { rank: 7, abbr: 'SD', name: 'Gulls', gp: 72, w: 33, l: 27, otl: 8, sol: 4, pts: 78, pct: '.542', gf: 224, ga: 228, diff: '-4', isCuda: false },
-    { rank: 8, abbr: 'TUC', name: 'Roadrunners', gp: 72, w: 34, l: 28, otl: 10, sol: 0, pts: 78, pct: '.542', gf: 230, ga: 239, diff: '-9', isCuda: false },
-    { rank: 9, abbr: 'ABB', name: 'Canucks', gp: 72, w: 28, l: 37, otl: 4, sol: 3, pts: 63, pct: '.438', gf: 173, ga: 234, diff: '-61', isCuda: false },
-    { rank: 10, abbr: 'CGY', name: 'Wranglers', gp: 72, w: 23, l: 34, otl: 10, sol: 5, pts: 61, pct: '.424', gf: 203, ga: 269, diff: '-66', isCuda: false },
+    { rank: 1, abbr: 'ONT', name: 'Reign', badgeBg: '#111111', badgeText: '#A2AAAD', gp: 72, w: 47, l: 20, otl: 3, sol: 2, pts: 99, pct: '.688', diff: '+50', isCuda: false },
+    { rank: 2, abbr: 'COL', name: 'Eagles', badgeBg: '#002B49', badgeText: '#C8102E', gp: 72, w: 41, l: 20, otl: 6, sol: 5, pts: 93, pct: '.646', diff: '+39', isCuda: false },
+    { rank: 3, abbr: 'HSK', name: 'Silver Knights', badgeBg: '#4A4A4A', badgeText: '#C5B783', gp: 72, w: 39, l: 21, otl: 7, sol: 5, pts: 90, pct: '.625', diff: '+38', isCuda: false },
+    { rank: 4, abbr: 'CV', name: 'Firebirds', badgeBg: '#B22222', badgeText: '#E87722', gp: 72, w: 41, l: 25, otl: 6, sol: 0, pts: 88, pct: '.611', diff: '+17', isCuda: false },
+    { rank: 5, abbr: 'BAK', name: 'Condors', badgeBg: '#002B49', badgeText: '#CF4520', gp: 72, w: 37, l: 23, otl: 11, sol: 1, pts: 86, pct: '.597', diff: '+8', isCuda: false },
+    { rank: 6, abbr: 'SJ', name: 'Barracuda', badgeBg: '#FF6B00', badgeText: '#FFFFFF', gp: 72, w: 40, l: 28, otl: 2, sol: 2, pts: 84, pct: '.583', diff: '+13', isCuda: true },
+    { rank: 7, abbr: 'SD', name: 'Gulls', badgeBg: '#002B49', badgeText: '#F15A22', gp: 72, w: 33, l: 27, otl: 8, sol: 4, pts: 78, pct: '.542', diff: '-4', isCuda: false },
+    { rank: 8, abbr: 'TUC', name: 'Roadrunners', badgeBg: '#8C2633', badgeText: '#C4CED3', gp: 72, w: 34, l: 28, otl: 10, sol: 0, pts: 78, pct: '.542', diff: '-9', isCuda: false },
+    { rank: 9, abbr: 'ABB', name: 'Canucks', badgeBg: '#00205B', badgeText: '#00843D', gp: 72, w: 28, l: 37, otl: 4, sol: 3, pts: 63, pct: '.438', diff: '-61', isCuda: false },
+    { rank: 10, abbr: 'CGY', name: 'Wranglers', badgeBg: '#C8102E', badgeText: '#F1BE48', gp: 72, w: 23, l: 34, otl: 10, sol: 5, pts: 61, pct: '.424', diff: '-66', isCuda: false },
   ],
   CENTRAL: [
-    { rank: 1, abbr: 'GR', name: 'Griffins', gp: 72, w: 51, l: 16, otl: 4, sol: 1, pts: 107, pct: '.743', gf: 255, ga: 159, diff: '+96', isCuda: false },
-    { rank: 2, abbr: 'CHI', name: 'Wolves', gp: 72, w: 36, l: 21, otl: 8, sol: 7, pts: 87, pct: '.604', gf: 225, ga: 218, diff: '+7', isCuda: false },
-    { rank: 3, abbr: 'TEX', name: 'Stars', gp: 72, w: 37, l: 29, otl: 4, sol: 2, pts: 80, pct: '.556', gf: 222, ga: 228, diff: '-6', isCuda: false },
-    { rank: 4, abbr: 'MB', name: 'Moose', gp: 72, w: 35, l: 29, otl: 5, sol: 3, pts: 78, pct: '.542', gf: 185, ga: 216, diff: '-31', isCuda: false },
-    { rank: 5, abbr: 'MIL', name: 'Admirals', gp: 72, w: 32, l: 33, otl: 4, sol: 3, pts: 71, pct: '.493', gf: 206, ga: 221, diff: '-15', isCuda: false },
-    { rank: 6, abbr: 'IA', name: 'Wild', gp: 72, w: 27, l: 36, otl: 6, sol: 3, pts: 63, pct: '.438', gf: 179, ga: 226, diff: '-47', isCuda: false },
-    { rank: 7, abbr: 'RFD', name: 'IceHogs', gp: 72, w: 28, l: 39, otl: 3, sol: 2, pts: 61, pct: '.424', gf: 196, ga: 245, diff: '-49', isCuda: false },
+    { rank: 1, abbr: 'GR', name: 'Griffins', badgeBg: '#B31B1B', badgeText: '#DAA520', gp: 72, w: 51, l: 16, otl: 4, sol: 1, pts: 107, pct: '.743', diff: '+96', isCuda: false },
+    { rank: 2, abbr: 'CHI', name: 'Wolves', badgeBg: '#5B0612', badgeText: '#EAA11F', gp: 72, w: 36, l: 21, otl: 8, sol: 7, pts: 87, pct: '.604', diff: '+7', isCuda: false },
+    { rank: 3, abbr: 'TEX', name: 'Stars', badgeBg: '#006A4E', badgeText: '#00B140', gp: 72, w: 37, l: 29, otl: 4, sol: 2, pts: 80, pct: '.556', diff: '-6', isCuda: false },
+    { rank: 4, abbr: 'MB', name: 'Moose', badgeBg: '#00205B', badgeText: '#A2AAAD', gp: 72, w: 35, l: 29, otl: 5, sol: 3, pts: 78, pct: '.542', diff: '-31', isCuda: false },
+    { rank: 5, abbr: 'MIL', name: 'Admirals', badgeBg: '#002B49', badgeText: '#87CEEB', gp: 72, w: 32, l: 33, otl: 4, sol: 3, pts: 71, pct: '.493', diff: '-15', isCuda: false },
+    { rank: 6, abbr: 'IA', name: 'Wild', badgeBg: '#154734', badgeText: '#DDCBA4', gp: 72, w: 27, l: 36, otl: 6, sol: 3, pts: 63, pct: '.438', diff: '-47', isCuda: false },
+    { rank: 7, abbr: 'RFD', name: 'IceHogs', badgeBg: '#CC0000', badgeText: '#000000', gp: 72, w: 28, l: 39, otl: 3, sol: 2, pts: 61, pct: '.424', diff: '-49', isCuda: false },
   ],
   ATLANTIC: [
-    { rank: 1, abbr: 'PRO', name: 'Bruins', gp: 72, w: 54, l: 16, otl: 2, sol: 0, pts: 110, pct: '.764', gf: 239, ga: 162, diff: '+77', isCuda: false },
-    { rank: 2, abbr: 'WBS', name: 'Penguins', gp: 72, w: 46, l: 17, otl: 7, sol: 2, pts: 101, pct: '.701', gf: 243, ga: 186, diff: '+57', isCuda: false },
-    { rank: 3, abbr: 'CLT', name: 'Checkers', gp: 72, w: 44, l: 23, otl: 5, sol: 0, pts: 93, pct: '.646', gf: 238, ga: 187, diff: '+51', isCuda: false },
-    { rank: 4, abbr: 'BRI', name: 'Islanders', gp: 72, w: 34, l: 30, otl: 3, sol: 5, pts: 76, pct: '.528', gf: 219, ga: 222, diff: '-3', isCuda: false },
-    { rank: 5, abbr: 'HER', name: 'Bears', gp: 72, w: 32, l: 31, otl: 6, sol: 3, pts: 73, pct: '.507', gf: 210, ga: 230, diff: '-20', isCuda: false },
-    { rank: 6, abbr: 'SPR', name: 'Thunderbirds', gp: 72, w: 32, l: 32, otl: 6, sol: 2, pts: 72, pct: '.500', gf: 207, ga: 240, diff: '-33', isCuda: false },
-    { rank: 7, abbr: 'LV', name: 'Phantoms', gp: 72, w: 31, l: 35, otl: 3, sol: 3, pts: 68, pct: '.472', gf: 210, ga: 247, diff: '-37', isCuda: false },
-    { rank: 8, abbr: 'HFD', name: 'Wolf Pack', gp: 72, w: 26, l: 38, otl: 5, sol: 3, pts: 60, pct: '.417', gf: 190, ga: 253, diff: '-63', isCuda: false },
+    { rank: 1, abbr: 'PRO', name: 'Bruins', badgeBg: '#000000', badgeText: '#FFB81C', gp: 72, w: 54, l: 16, otl: 2, sol: 0, pts: 110, pct: '.764', diff: '+77', isCuda: false },
+    { rank: 2, abbr: 'WBS', name: 'Penguins', badgeBg: '#000000', badgeText: '#CFC493', gp: 72, w: 46, l: 17, otl: 7, sol: 2, pts: 101, pct: '.701', diff: '+57', isCuda: false },
+    { rank: 3, abbr: 'CLT', name: 'Checkers', badgeBg: '#CC0000', badgeText: '#002B49', gp: 72, w: 44, l: 23, otl: 5, sol: 0, pts: 93, pct: '.646', diff: '+51', isCuda: false },
+    { rank: 4, abbr: 'BRI', name: 'Islanders', badgeBg: '#00539B', badgeText: '#F47920', gp: 72, w: 34, l: 30, otl: 3, sol: 5, pts: 76, pct: '.528', diff: '-3', isCuda: false },
+    { rank: 5, abbr: 'HER', name: 'Bears', badgeBg: '#4A2A18', badgeText: '#D1AB66', gp: 72, w: 32, l: 31, otl: 6, sol: 3, pts: 73, pct: '.507', diff: '-20', isCuda: false },
+    { rank: 6, abbr: 'SPR', name: 'Thunderbirds', badgeBg: '#002B49', badgeText: '#39A9DC', gp: 72, w: 32, l: 32, otl: 6, sol: 2, pts: 72, pct: '.500', diff: '-33', isCuda: false },
+    { rank: 7, abbr: 'LV', name: 'Phantoms', badgeBg: '#F47920', badgeText: '#000000', gp: 72, w: 31, l: 35, otl: 3, sol: 3, pts: 68, pct: '.472', diff: '-37', isCuda: false },
+    { rank: 8, abbr: 'HFD', name: 'Wolf Pack', badgeBg: '#00205B', badgeText: '#C8102E', gp: 72, w: 26, l: 38, otl: 5, sol: 3, pts: 60, pct: '.417', diff: '-63', isCuda: false },
   ],
   NORTH: [
-    { rank: 1, abbr: 'LAV', name: 'Rocket', gp: 72, w: 41, l: 23, otl: 3, sol: 5, pts: 90, pct: '.625', gf: 233, ga: 200, diff: '+33', isCuda: false },
-    { rank: 2, abbr: 'SYR', name: 'Crunch', gp: 72, w: 41, l: 24, otl: 3, sol: 4, pts: 89, pct: '.618', gf: 237, ga: 189, diff: '+48', isCuda: false },
-    { rank: 3, abbr: 'CLE', name: 'Monsters', gp: 72, w: 37, l: 26, otl: 6, sol: 3, pts: 83, pct: '.576', gf: 217, ga: 227, diff: '-10', isCuda: false },
-    { rank: 4, abbr: 'TOR', name: 'Marlies', gp: 72, w: 36, l: 26, otl: 5, sol: 5, pts: 82, pct: '.569', gf: 229, ga: 228, diff: '+1', isCuda: false },
-    { rank: 5, abbr: 'ROC', name: 'Americans', gp: 72, w: 31, l: 31, otl: 6, sol: 4, pts: 72, pct: '.500', gf: 214, ga: 235, diff: '-21', isCuda: false },
-    { rank: 6, abbr: 'UTC', name: 'Comets', gp: 72, w: 30, l: 31, otl: 6, sol: 5, pts: 71, pct: '.493', gf: 199, ga: 220, diff: '-21', isCuda: false },
-    { rank: 7, abbr: 'BEL', name: 'Senators', gp: 72, w: 28, l: 35, otl: 8, sol: 1, pts: 65, pct: '.451', gf: 223, ga: 262, diff: '-39', isCuda: false },
+    { rank: 1, abbr: 'LAV', name: 'Rocket', badgeBg: '#00205B', badgeText: '#C8102E', gp: 72, w: 41, l: 23, otl: 3, sol: 5, pts: 90, pct: '.625', diff: '+33', isCuda: false },
+    { rank: 2, abbr: 'SYR', name: 'Crunch', badgeBg: '#00205B', badgeText: '#A2AAAD', gp: 72, w: 41, l: 24, otl: 3, sol: 4, pts: 89, pct: '.618', diff: '+48', isCuda: false },
+    { rank: 3, abbr: 'CLE', name: 'Monsters', badgeBg: '#000000', badgeText: '#872434', gp: 72, w: 37, l: 26, otl: 6, sol: 3, pts: 83, pct: '.576', diff: '-10', isCuda: false },
+    { rank: 4, abbr: 'TOR', name: 'Marlies', badgeBg: '#00205B', badgeText: '#FFFFFF', gp: 72, w: 36, l: 26, otl: 5, sol: 5, pts: 82, pct: '.569', diff: '+1', isCuda: false },
+    { rank: 5, abbr: 'ROC', name: 'Americans', badgeBg: '#C8102E', badgeText: '#00205B', gp: 72, w: 31, l: 31, otl: 6, sol: 4, pts: 72, pct: '.500', diff: '-21', isCuda: false },
+    { rank: 6, abbr: 'UTC', name: 'Comets', badgeBg: '#00205B', badgeText: '#00843D', gp: 72, w: 30, l: 31, otl: 6, sol: 5, pts: 71, pct: '.493', diff: '-21', isCuda: false },
+    { rank: 7, abbr: 'BEL', name: 'Senators', badgeBg: '#000000', badgeText: '#C8102E', gp: 72, w: 28, l: 35, otl: 8, sol: 1, pts: 65, pct: '.451', diff: '-39', isCuda: false },
   ],
 };
 
@@ -165,8 +165,8 @@ export default function Standings() {
                   >
                     <Text style={[styles.tdCell, styles.rankCol, { color: team.isCuda ? theme.accentGold : theme.text, fontWeight: '800' }]}>{team.rank}</Text>
                     <View style={[styles.teamCellWrapper, styles.teamCol]}>
-                      <View style={[styles.teamMiniBadge, { backgroundColor: theme.subCardBg }, team.isCuda && { backgroundColor: '#FF6B00' }]}>
-                        <Text style={[styles.teamMiniBadgeText, { color: team.isCuda ? '#FFFFFF' : theme.text }]}>{team.abbr}</Text>
+                      <View style={[styles.teamMiniBadge, { backgroundColor: team.badgeBg }]}>
+                        <Text style={[styles.teamMiniBadgeText, { color: team.badgeText }]}>{team.abbr}</Text>
                       </View>
                       <Text style={[styles.tdCell, { color: team.isCuda ? theme.accentGold : theme.text }, team.isCuda && { fontWeight: '900' }]} numberOfLines={1}>
                         {team.name}
@@ -211,7 +211,7 @@ const styles = StyleSheet.create({
   thCell: { fontSize: 10, fontWeight: '800', textAlign: 'center' },
   tableRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderBottomWidth: 1 },
   teamCellWrapper: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  teamMiniBadge: { width: 32, height: 18, borderRadius: 4, justifyContent: 'center', alignItems: 'center' },
+  teamMiniBadge: { width: 34, height: 20, borderRadius: 4, justifyContent: 'center', alignItems: 'center' },
   teamMiniBadgeText: { fontSize: 9, fontWeight: '900' },
   tdCell: { fontSize: 11, fontWeight: '600' },
   rankCol: { width: 24, textAlign: 'center' },

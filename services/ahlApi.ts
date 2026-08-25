@@ -75,38 +75,43 @@ async function safeFetch(url: string, timeoutMs = 2500): Promise<any> {
   }
 }
 
-// 1. 📅 SCHEDULE & NEXT MATCHUP (Live override ready)
+// 1. 📅 FETCH SCHEDULE (Supabase First + Complete Fallback)
 export async function fetchBarracudaSchedule(): Promise<GameScheduleItem[]> {
   try {
-    const data = await safeFetch(
-      'https://lscluster.hockeytech.com/feed/index.php?feed=statviewfeed&view=schedule&team_id=408&client_code=ahl&league_id=4&lang=en'
-    );
-    const games = data?.SiteKit?.Statviewfeed?.schedule;
-    if (Array.isArray(games) && games.length > 0) {
-      return games.map((g: any) => ({
-        id: String(g.game_id || Math.random()),
-        date: g.date_with_day || g.game_date || 'TBD',
-        opponent: g.home_team_name?.includes('Barracuda')
-          ? g.visiting_team_name || 'Opponent'
-          : g.home_team_name || 'Opponent',
-        homeAway: g.home_team_name?.includes('Barracuda') ? 'HOME' : 'AWAY',
+    const { data: dbGames, error } = await supabase
+      .from('schedule')
+      .select('*')
+      .order('game_date', { ascending: true });
+
+    if (!error && Array.isArray(dbGames) && dbGames.length > 0) {
+      return dbGames.map((g: any) => ({
+        id: String(g.id),
+        date: g.date_display || g.game_date,
+        opponent: g.opponent,
+        homeAway: g.home_away as 'HOME' | 'AWAY',
         time: g.game_time || '7:00 PM',
         venue: g.venue || 'Tech CU Arena',
-        status: g.final === '1' ? 'FINAL' : 'UPCOMING',
-        result: g.game_status || undefined,
-        score: g.final === '1' ? `${g.home_goal_count} - ${g.visiting_goal_count}` : undefined,
+        status: g.status === 'COMPLETED' ? 'FINAL' : 'UPCOMING',
+        themeNight: g.theme_night || undefined,
+        score: g.home_score !== null && g.away_score !== null ? `${g.home_score} - ${g.away_score}` : undefined,
       }));
     }
-  } catch {}
+  } catch (err) {
+    console.warn('Supabase schedule query fallback:', err);
+  }
 
-  // 2026-27 Season Kickoff Matchups Fallback
+  // Instant Fallback with Official 2026-27 Schedule
   return [
-    { id: '1', date: 'Fri, Oct 16, 2026', opponent: 'Ontario Reign', homeAway: 'HOME', time: '7:00 PM', venue: 'Tech CU Arena', status: 'UPCOMING', themeNight: 'Opening Night & Magnet Schedule' },
-    { id: '2', date: 'Sat, Oct 17, 2026', opponent: 'Bakersfield Condors', homeAway: 'HOME', time: '6:00 PM', venue: 'Tech CU Arena', status: 'UPCOMING', themeNight: 'Section 108 Rally Night' },
-    { id: '3', date: 'Fri, Oct 23, 2026', opponent: 'Coachella Valley Firebirds', homeAway: 'AWAY', time: '7:00 PM', venue: 'Acrisure Arena', status: 'UPCOMING' },
-    { id: '4', date: 'Sat, Oct 24, 2026', opponent: 'San Diego Gulls', homeAway: 'AWAY', time: '7:00 PM', venue: 'Pechanga Arena', status: 'UPCOMING' },
-    { id: '5', date: 'Sun, Nov 1, 2026', opponent: 'Henderson Silver Knights', homeAway: 'HOME', time: '3:00 PM', venue: 'Tech CU Arena', status: 'UPCOMING', themeNight: 'Pucks & Paws Day' },
-    { id: '6', date: 'Fri, Nov 6, 2026', opponent: 'Abbotsford Canucks', homeAway: 'HOME', time: '7:00 PM', venue: 'Tech CU Arena', status: 'UPCOMING' },
+    { id: '1', date: 'Sat, Oct 3, 2026', opponent: 'San Diego Gulls', homeAway: 'HOME', time: '3:00 PM', venue: 'Tech CU Arena', status: 'UPCOMING', themeNight: 'Opening Night • Giveaway: Magnet Schedules' },
+    { id: '2', date: 'Sun, Oct 4, 2026', opponent: 'San Diego Gulls', homeAway: 'HOME', time: '3:00 PM', venue: 'Tech CU Arena', status: 'UPCOMING' },
+    { id: '3', date: 'Fri, Oct 9, 2026', opponent: 'Tucson Roadrunners', homeAway: 'HOME', time: '7:00 PM', venue: 'Tech CU Arena', status: 'UPCOMING' },
+    { id: '4', date: 'Sat, Oct 10, 2026', opponent: 'Tucson Roadrunners', homeAway: 'HOME', time: '6:00 PM', venue: 'Tech CU Arena', status: 'UPCOMING', themeNight: 'Oktoberfest • Giveaway: Bavarian Hats' },
+    { id: '5', date: 'Wed, Oct 14, 2026', opponent: 'Calgary Wranglers', homeAway: 'HOME', time: '10:30 AM', venue: 'Tech CU Arena', status: 'UPCOMING', themeNight: 'Cuda Classroom • Giveaway: Workbooks' },
+    { id: '6', date: 'Fri, Oct 16, 2026', opponent: 'Calgary Wranglers', homeAway: 'HOME', time: '7:00 PM', venue: 'Tech CU Arena', status: 'UPCOMING', themeNight: 'Pucks & Paws • Giveaway: Collapsible Water Bowl' },
+    { id: '7', date: 'Fri, Oct 23, 2026', opponent: 'Coachella Valley Firebirds', homeAway: 'AWAY', time: '7:00 PM', venue: 'Acrisure Arena', status: 'UPCOMING', themeNight: 'Official Away Watch Party' },
+    { id: '8', date: 'Sat, Oct 24, 2026', opponent: 'San Diego Gulls', homeAway: 'AWAY', time: '6:00 PM', venue: 'Pechanga Arena', status: 'UPCOMING', themeNight: 'Road Game Invasion & Tailgate' },
+    { id: '9', date: 'Wed, Oct 28, 2026', opponent: 'Abbotsford Canucks', homeAway: 'HOME', time: '7:00 PM', venue: 'Tech CU Arena', status: 'UPCOMING' },
+    { id: '10', date: 'Sun, Nov 1, 2026', opponent: 'Bakersfield Condors', homeAway: 'HOME', time: '3:00 PM', venue: 'Tech CU Arena', status: 'UPCOMING', themeNight: 'Military Appreciation • Supporter Tabling' },
   ];
 }
 

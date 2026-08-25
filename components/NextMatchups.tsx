@@ -19,7 +19,7 @@ const TEAM_THEMES: Record<string, TeamTheme> = {
   condors: { name: 'Condors', abbr: 'BAK', primaryColor: '#002B49', textColor: '#CF4520' },
   reign: { name: 'Reign', abbr: 'ONT', primaryColor: '#111111', textColor: '#A2AAAD' },
   knights: { name: 'Silver Knights', abbr: 'HSK', primaryColor: '#4A4A4A', textColor: '#C5B783' },
-  stars: { name: 'Stars', abbr: 'TEX', primaryColor: '#006A4E', textColor: '#000000' },
+  stars: { name: 'Stars', abbr: 'TEX', primaryColor: '#006A4E', textColor: '#00B140' },
   wolves: { name: 'Wolves', abbr: 'CHI', primaryColor: '#5B0612', textColor: '#EAA11F' },
   eagles: { name: 'Eagles', abbr: 'COL', primaryColor: '#002B49', textColor: '#C8102E' },
 };
@@ -102,9 +102,9 @@ export default function NextMatchups() {
                 </View>
 
                 <View style={styles.teamsRow}>
-                  {/* San Jose Barracuda */}
+                  {/* San Jose Barracuda: Teal fill + Orange border */}
                   <View style={styles.teamCol}>
-                    <View style={[styles.teamCircle, { backgroundColor: '#FF6B00', borderColor: '#FFB800' }]}>
+                    <View style={[styles.teamCircle, { backgroundColor: '#002D33', borderColor: '#FF6B00' }]}>
                       <Text style={[styles.teamCircleText, { color: '#FFFFFF' }]}>SJ</Text>
                     </View>
                     <Text style={[styles.teamLabel, { color: theme.text }]}>Barracuda</Text>

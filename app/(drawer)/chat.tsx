@@ -12,10 +12,20 @@ import {
   Platform,
   StatusBar,
   Alert,
+  Image,
+  Modal,
+  Dimensions,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../../supabase';
 import { useAppTheme } from '../../context/ThemeContext';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const GIF_WIDTH = (SCREEN_WIDTH - 48) / 2;
+
+// Production Public GIPHY Key
+const GIPHY_API_KEY = '7AOGG0797w4yWkYjY6H36uJ1XmRkmx8k';
 
 interface ChatMessage {
   id: string;
@@ -24,6 +34,8 @@ interface ChatMessage {
   username: string;
   content?: string;
   message?: string;
+  media_url?: string;
+  media_type?: 'IMAGE' | 'GIF';
   created_at: string;
 }
 
@@ -32,6 +44,16 @@ const ROOMS = [
   { id: 'watch-parties', title: '🍻 Watch Parties', desc: 'Away game meetups & bar spots' },
   { id: 'merch', title: '🎟️ Merch & Tickets', desc: 'Ticket exchanges and fan gear' },
   { id: 'prospects', title: '⭐ Prospect Talk', desc: 'Sharks & Cuda prospect development' },
+];
+
+// Curated Instant Fallback GIFs in case of offline / rate limits
+const FALLBACK_GIFS = [
+  { id: 'fb-1', images: { fixed_height: { url: 'https://media.giphy.com/media/3o7TKSjRrfIPjeiVyM/giphy.gif' } } },
+  { id: 'fb-2', images: { fixed_height: { url: 'https://media.giphy.com/media/l0HlTdK9f97qfOGRy/giphy.gif' } } },
+  { id: 'fb-3', images: { fixed_height: { url: 'https://media.giphy.com/media/26FPqAH61DhAndwPa/giphy.gif' } } },
+  { id: 'fb-4', images: { fixed_height: { url: 'https://media.giphy.com/media/xT9IgG50Fb7Mi0prBC/giphy.gif' } } },
+  { id: 'fb-5', images: { fixed_height: { url: 'https://media.giphy.com/media/3o85xGocUH8RYoDKKs/giphy.gif' } } },
+  { id: 'fb-6', images: { fixed_height: { url: 'https://media.giphy.com/media/l2JdZ53ZTs3WShYHy/giphy.gif' } } },
 ];
 
 export default function ChatScreen() {
@@ -48,6 +70,12 @@ export default function ChatScreen() {
   const [inputText, setInputText] = useState('');
   const [sending, setSending] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Media & Giphy State
+  const [gifModalVisible, setGifModalVisible] = useState(false);
+  const [gifSearchText, setGifSearchText] = useState('hockey');
+  const [gifResults, setGifResults] = useState<any[]>([]);
+  const [gifLoading, setGifLoading] = useState(false);
 
   const flatListRef = useRef<FlatList>(null);
 
@@ -128,6 +156,7 @@ export default function ChatScreen() {
     setLoading(false);
   };
 
+  // 📝 Send Text Message
   const handleSendMessage = async () => {
     if (!inputText.trim() || sending) return;
 
@@ -176,6 +205,156 @@ export default function ChatScreen() {
     }
   };
 
+  // 📸 Upload & Send Photo
+  const handlePickAndSendImage = async () => {
+    if (!session?.user) {
+      Alert.alert('Sign In Required', 'Please sign in to upload photos to Section 108 chat.');
+      return;
+    }
+
+    Alert.alert('Share Photo', 'Select a photo source:', [
+      {
+        text: 'Camera',
+        onPress: async () => {
+          const { status } = await ImagePicker.requestCameraPermissionsAsync();
+          if (status !== 'granted') {
+            Alert.alert('Permission Denied', 'Camera permission is required.');
+            return;
+          }
+          const result = await ImagePicker.launchCameraAsync({
+            allowsEditing: true,
+            quality: 0.8,
+          });
+          if (!result.canceled && result.assets[0]) {
+            uploadAndDispatchMedia(result.assets[0].uri, 'IMAGE');
+          }
+        },
+      },
+      {
+        text: 'Photo Library',
+        onPress: async () => {
+          const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+          if (status !== 'granted') {
+            Alert.alert('Permission Denied', 'Media library access is required.');
+            return;
+          }
+          const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsEditing: true,
+            quality: 0.8,
+          });
+          if (!result.canceled && result.assets[0]) {
+            uploadAndDispatchMedia(result.assets[0].uri, 'IMAGE');
+          }
+        },
+      },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
+
+  const uploadAndDispatchMedia = async (localUri: string, mediaType: 'IMAGE' | 'GIF') => {
+    try {
+      setSending(true);
+      const ext = localUri.split('.').pop() || 'jpg';
+      const fileName = `chat_${session.user.id}_${Date.now()}.${ext}`;
+
+      const formData = new FormData();
+      formData.append('file', {
+        uri: localUri,
+        name: fileName,
+        type: `image/${ext}`,
+      } as any);
+
+      const { error: uploadError } = await supabase.storage
+        .from('chat-media')
+        .upload(fileName, formData);
+
+      if (uploadError) throw uploadError;
+
+      const { data: publicData } = supabase.storage.from('chat-media').getPublicUrl(fileName);
+
+      const chatHandle =
+        currentUserProfile?.username ||
+        (session.user.email ? session.user.email.split('@')[0] : 'Supporter108');
+
+      const newMessage = {
+        room: activeRoom,
+        user_id: session.user.id,
+        username: chatHandle,
+        content: '📷 Photo',
+        message: '📷 Photo',
+        media_url: publicData.publicUrl,
+        media_type: mediaType,
+      };
+
+      const { data, error } = await supabase.from('chat_messages').insert([newMessage]).select().single();
+      if (data && !error) {
+        setMessages((prev) => (prev.some((m) => m.id === data.id) ? prev : [...prev, data as ChatMessage]));
+      }
+    } catch (err: any) {
+      Alert.alert('Upload Error', err.message || 'Could not send photo.');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  // 🎬 Guaranteed GIPHY Search
+  const searchGiphy = async (query = 'hockey') => {
+    setGifLoading(true);
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 3000);
+      const endpoint = `https://api.giphy.com/v1/gifs/search?api_key=${GIPHY_API_KEY}&q=${encodeURIComponent(
+        query.trim() || 'hockey'
+      )}&limit=24&rating=pg-13`;
+
+      const res = await fetch(endpoint, { signal: controller.signal });
+      clearTimeout(timer);
+      const json = await res.json();
+
+      if (json?.data && Array.isArray(json.data) && json.data.length > 0) {
+        setGifResults(json.data);
+        setGifLoading(false);
+        return;
+      }
+    } catch (e) {
+      console.warn('Giphy live fetch fallback', e);
+    }
+
+    // Load Curated GIFs if query produces no results or network drops
+    setGifResults(FALLBACK_GIFS);
+    setGifLoading(false);
+  };
+
+  const handleSelectGif = async (gifUrl: string) => {
+    setGifModalVisible(false);
+    if (!session?.user) return;
+
+    const chatHandle =
+      currentUserProfile?.username ||
+      (session.user.email ? session.user.email.split('@')[0] : 'Supporter108');
+
+    const newMessage = {
+      room: activeRoom,
+      user_id: session.user.id,
+      username: chatHandle,
+      content: '🎬 GIF',
+      message: '🎬 GIF',
+      media_url: gifUrl,
+      media_type: 'GIF',
+    };
+
+    setSending(true);
+    try {
+      const { data, error } = await supabase.from('chat_messages').insert([newMessage]).select().single();
+      if (data && !error) {
+        setMessages((prev) => (prev.some((m) => m.id === data.id) ? prev : [...prev, data as ChatMessage]));
+      }
+    } finally {
+      setSending(false);
+    }
+  };
+
   const filteredMessages = searchQuery.trim()
     ? messages.filter((m) => {
         const text = m.content || m.message || '';
@@ -203,7 +382,7 @@ export default function ChatScreen() {
             <Text style={styles.loggedOutIcon}>🔒</Text>
             <Text style={[styles.loggedOutTitle, { color: theme.accentGold }]}>SECTION 108 CHAT</Text>
             <Text style={[styles.loggedOutSub, { color: theme.subText }]}>
-              Join the real-time supporter rooms, share gameday reactions, and connect with fellow Barracuda boosters.
+              Join the real-time supporter rooms, share gameday reactions, photos, and GIFs with fellow Barracuda boosters.
             </Text>
             <TouchableOpacity
               style={[styles.loginBtn, { backgroundColor: theme.accentOrange }]}
@@ -310,9 +489,13 @@ export default function ChatScreen() {
                         : { backgroundColor: theme.cardBg, borderColor: theme.borderColor, borderWidth: 1, alignSelf: 'flex-start' },
                     ]}
                   >
-                    <Text style={[styles.messageText, { color: isMine ? '#FFFFFF' : theme.text }]}>
-                      {displayMsg}
-                    </Text>
+                    {item.media_url ? (
+                      <Image source={{ uri: item.media_url }} style={styles.bubbleMedia} resizeMode="cover" />
+                    ) : (
+                      <Text style={[styles.messageText, { color: isMine ? '#FFFFFF' : theme.text }]}>
+                        {displayMsg}
+                      </Text>
+                    )}
                     <Text style={[styles.messageTime, { color: isMine ? 'rgba(255,255,255,0.7)' : theme.subText }]}>
                       {formattedTime}
                     </Text>
@@ -323,8 +506,25 @@ export default function ChatScreen() {
           />
         )}
 
-        {/* Message Input Bar */}
+        {/* Message Input Toolbar */}
         <View style={[styles.inputBar, { backgroundColor: theme.cardBg, borderTopColor: theme.borderColor }]}>
+          {/* Photo Attachment Button */}
+          <TouchableOpacity style={[styles.iconButton, { backgroundColor: theme.subCardBg }]} onPress={handlePickAndSendImage}>
+            <Text style={{ fontSize: 18 }}>📎</Text>
+          </TouchableOpacity>
+
+          {/* Giphy GIF Picker Button */}
+          <TouchableOpacity
+            style={[styles.gifButton, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}
+            onPress={() => {
+              setGifModalVisible(true);
+              searchGiphy('hockey');
+            }}
+          >
+            <Text style={[styles.gifButtonText, { color: theme.accentGold }]}>GIF</Text>
+          </TouchableOpacity>
+
+          {/* Text Input */}
           <TextInput
             style={[styles.messageInput, { backgroundColor: theme.subCardBg, color: theme.text, borderColor: theme.borderColor }]}
             placeholder={`Message #${ROOMS.find((r) => r.id === activeRoom)?.title}...`}
@@ -333,6 +533,8 @@ export default function ChatScreen() {
             onChangeText={setInputText}
             multiline
           />
+
+          {/* Send Action */}
           <TouchableOpacity
             style={[styles.sendButton, { backgroundColor: theme.accentGold }]}
             onPress={handleSendMessage}
@@ -342,6 +544,76 @@ export default function ChatScreen() {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+
+      {/* 🎬 GIPHY GIF Selection Modal */}
+      <Modal visible={gifModalVisible} animationType="slide" transparent onRequestClose={() => setGifModalVisible(false)}>
+        <View style={styles.gifModalOverlay}>
+          <View style={[styles.gifModalContainer, { backgroundColor: theme.cardBg, borderColor: theme.accentGold }]}>
+            <View style={styles.gifModalHeader}>
+              <Text style={[styles.gifModalTitle, { color: theme.accentGold }]}>🎬 GIPHY KEYBOARD</Text>
+              <TouchableOpacity onPress={() => setGifModalVisible(false)}>
+                <Text style={[styles.gifCloseText, { color: theme.subText }]}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Quick Search Shortcut Tags */}
+            <View style={styles.quickTagsRow}>
+              {['San Jose Sharks', 'Goal', 'Celley', 'Hockey Fight', 'Reef'].map((tag) => (
+                <TouchableOpacity
+                  key={tag}
+                  style={[styles.quickTagPill, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}
+                  onPress={() => {
+                    setGifSearchText(tag);
+                    searchGiphy(tag);
+                  }}
+                >
+                  <Text style={[styles.quickTagText, { color: theme.text }]}>{tag}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Search Box */}
+            <View style={[styles.gifSearchRow, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}>
+              <TextInput
+                style={[styles.gifSearchInput, { color: theme.text }]}
+                placeholder="Search GIPHY GIFs..."
+                placeholderTextColor="#80B3B8"
+                value={gifSearchText}
+                onChangeText={(t) => {
+                  setGifSearchText(t);
+                  searchGiphy(t);
+                }}
+              />
+            </View>
+
+            {/* GIF Results Grid */}
+            {gifLoading ? (
+              <ActivityIndicator size="large" color={theme.accentGold} style={{ flex: 1, marginTop: 20 }} />
+            ) : (
+              <FlatList
+                data={gifResults}
+                keyExtractor={(item, index) => item.id || String(index)}
+                numColumns={2}
+                contentContainerStyle={{ paddingBottom: 20 }}
+                renderItem={({ item }) => {
+                  const gifUrl = item.images?.fixed_height?.url || item.images?.downsized?.url;
+                  if (!gifUrl) return null;
+
+                  return (
+                    <TouchableOpacity
+                      style={styles.gifGridItem}
+                      activeOpacity={0.8}
+                      onPress={() => handleSelectGif(gifUrl)}
+                    >
+                      <Image source={{ uri: gifUrl }} style={styles.gifThumbnail} resizeMode="cover" />
+                    </TouchableOpacity>
+                  );
+                }}
+              />
+            )}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -358,13 +630,17 @@ const styles = StyleSheet.create({
   myBubbleWrapper: { alignSelf: 'flex-end' },
   otherBubbleWrapper: { alignSelf: 'flex-start' },
   senderHandle: { fontSize: 11, fontWeight: '800', marginBottom: 3 },
-  messageBubble: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14 },
+  messageBubble: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 14, overflow: 'hidden' },
+  bubbleMedia: { width: 220, height: 160, borderRadius: 8, marginBottom: 4 },
   messageText: { fontSize: 14, fontWeight: '600', lineHeight: 19 },
   messageTime: { fontSize: 9, marginTop: 4, textAlign: 'right', fontWeight: '500' },
-  inputBar: { flexDirection: 'row', padding: 10, borderTopWidth: 1, alignItems: 'center', gap: 8 },
-  messageInput: { flex: 1, minHeight: 40, maxHeight: 90, borderRadius: 20, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 8, fontSize: 13, fontWeight: '600' },
-  sendButton: { width: 42, height: 42, borderRadius: 21, justifyContent: 'center', alignItems: 'center' },
-  sendButtonText: { fontSize: 18, color: '#001E22', fontWeight: '900' },
+  inputBar: { flexDirection: 'row', padding: 8, borderTopWidth: 1, alignItems: 'center', gap: 6 },
+  iconButton: { width: 38, height: 38, borderRadius: 19, justifyContent: 'center', alignItems: 'center' },
+  gifButton: { width: 44, height: 38, borderRadius: 10, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
+  gifButtonText: { fontSize: 12, fontWeight: '900' },
+  messageInput: { flex: 1, minHeight: 38, maxHeight: 90, borderRadius: 20, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 6, fontSize: 13, fontWeight: '600' },
+  sendButton: { width: 38, height: 38, borderRadius: 19, justifyContent: 'center', alignItems: 'center' },
+  sendButtonText: { fontSize: 16, color: '#001E22', fontWeight: '900' },
   loggedOutContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
   loggedOutCard: { width: '100%', padding: 24, borderRadius: 16, borderWidth: 1, alignItems: 'center' },
   loggedOutIcon: { fontSize: 40, marginBottom: 10 },
@@ -372,4 +648,16 @@ const styles = StyleSheet.create({
   loggedOutSub: { fontSize: 13, textAlign: 'center', marginTop: 6, marginBottom: 20, lineHeight: 18 },
   loginBtn: { width: '100%', paddingVertical: 14, borderRadius: 10, alignItems: 'center' },
   loginBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '900' },
+  gifModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'flex-end' },
+  gifModalContainer: { height: '80%', borderTopLeftRadius: 20, borderTopRightRadius: 20, borderWidth: 1, padding: 14 },
+  gifModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  gifModalTitle: { fontSize: 16, fontWeight: '900' },
+  gifCloseText: { fontSize: 20, fontWeight: '900', paddingHorizontal: 6 },
+  quickTagsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 },
+  quickTagPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1 },
+  quickTagText: { fontSize: 11, fontWeight: '700' },
+  gifSearchRow: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, marginBottom: 12 },
+  gifSearchInput: { fontSize: 13, fontWeight: '600' },
+  gifGridItem: { width: GIF_WIDTH, height: 120, margin: 4, borderRadius: 8, overflow: 'hidden' },
+  gifThumbnail: { width: '100%', height: '100%' },
 });

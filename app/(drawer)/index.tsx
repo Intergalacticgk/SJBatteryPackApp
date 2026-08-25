@@ -40,7 +40,6 @@ export default function HomeScreen() {
   const [infoModalVisible, setInfoModalVisible] = useState(false);
   const [activeTab, setActiveTab] = useState<GuideTab>('TIMELINE');
 
-  // Co-branded affiliate deep-link context setup
   const SPOT_HERO_URL = "https://spothero.com/search?kind=destination&id=98853&%243p=a_hasoffers&%24affiliate_json=http%3A%2F%2Ftracking.spothero.com%2Faff_c%3Foffer_id%3D1%26aff_id%3D1822%26source%3Dtechcu%26aff_sub2%3Dparkingpage%26aff_sub3%3Dlink%26format%3Djson&operator_id=16236&_branch_match_id=1160313675964026424&utm_source=Partnerships&utm_campaign=Tune_Platform&utm_medium=paid+advertising&_branch_referrer=H4sIAAAAAAAAA32RwW7CMBBEvyY%2BQmJDCJWsqiri2AvqOXKcDXZJYtd2WnHh27sONIVSVfJlZ%2B2dfWMVgvUP87m3JihwZiasnbW6P8yDzyx9ed9B9njQfc1r8EH3ImjTE13zdVEsGUnoglkuSiW8aRpw%2Fm9FNI1utQhQvnnTc4WmCXtK6BZPcEKiwX42rSBNhzq%2BKWXCtuOUUxK4T22QJzaN8LgpKsfZmcBKwDiCVHC43%2FFBR1KxwcbQVe%2FhpMGxEQlQa4zoRsI5rEWPBiWCiGc9yynIyuHZc1k%2Fb3uUUCaakcN2ELmMCOPMqA7T6hXGSrZaHS53SVQNpwYq8qvIqX7C0kNWqksVyUazHy8aHUg7OQS%2BP%2BOJ1t5nkD9EOkT%2BNigdp%2Blq4Y2mHqtUeV8VWjEmJcvqFi3SX3N6INsZGiZcKOjizE4U2%2FA6cWBEUv8En4wBOyTcsz8jZhZ89yITN%2F4cmt8gcgckVLk%2FJyQF6OPzdsnLm04Pjz8qZDr4An%2F32gtICAAA%3D&view=dl&sc_src=email_810903&sc_lid=115904702&sc_uid=EylLZSAwqa&sc_llid=868&sc_eh=8a76f9a613a0bf8c1";
 
   const formatTimeTo12Hour = (timeStr: string) => {
@@ -53,7 +52,6 @@ export default function HomeScreen() {
     return `${hours}:${minutesStr} ${ampm} PST`;
   };
 
-  // Dynamically determines entry times relative to standard game-times from the DB
   const getCalculatedDoorTimes = (timeStr: string) => {
     if (!timeStr) return { memberTime: '5:45 PM', generalTime: '6:00 PM' };
     
@@ -64,7 +62,6 @@ export default function HomeScreen() {
     const gameDateObj = new Date();
     gameDateObj.setHours(gameHours, gameMinutes, 0, 0);
 
-    // Subtract structural entry intervals
     const memberDate = new Date(gameDateObj.getTime() - 75 * 60 * 1000);
     const generalDate = new Date(gameDateObj.getTime() - 60 * 60 * 1000);
 
@@ -113,10 +110,8 @@ export default function HomeScreen() {
     }
   };
 
-  // ✅ UNLOCKS AUTOMATICALLY AT 12:00 AM ON THE DAY OF THE MATCH
   const checkGamedayActive = (gameDateStr: string) => {
     if (!gameDateStr) return;
-    
     const todayLocalStr = new Date().toLocaleDateString('sv-SE');
     if (todayLocalStr === gameDateStr) {
       setIsGameWindowOpen(true);
@@ -232,7 +227,7 @@ export default function HomeScreen() {
           <Text style={[styles.bannerSubtitle, { color: theme.text }]}>The Loudest Supporter Group in the AHL 🪸</Text>
         </View>
 
-        {/* 1. 📍 GAMEDAY HQ (FIRST ITEM) */}
+        {/* 1. 📍 GAMEDAY HQ */}
         {loading ? (
           <View style={[styles.loaderContainer, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
             <ActivityIndicator size="small" color={theme.accentGold} />
@@ -272,7 +267,7 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* 2. 🦈 DEFEND THE REEF. GIVE BACK. (DIRECTLY ABOVE NEXT MATCHUPS) */}
+        {/* 2. 🦈 DEFEND THE REEF */}
         <View style={[styles.aboutCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
           <Text style={[styles.sectionHeader, { color: theme.accentGold }]}>🦈 DEFEND THE REEF. GIVE BACK.</Text>
           <Text style={[styles.aboutText, { color: theme.subText }]}>
@@ -286,7 +281,7 @@ export default function HomeScreen() {
         {/* 3. 🏒 NEXT 3 MATCHUPS */}
         <NextMatchups />
 
-        {/* 4. 📊 LAST ENCOUNTER & BOXSCORE STATS */}
+        {/* 4. 📊 LAST ENCOUNTER */}
         <LastEncounter 
           opponentAbbr="BAK"
           opponentName="Bakersfield Condors"
@@ -297,10 +292,10 @@ export default function HomeScreen() {
           gameFact="Barracuda recorded 34 shots on goal and held Bakersfield scoreless on 3 power play opportunities."
         />
 
-        {/* 5. 🏆 AHL STANDINGS (ALL DIVISIONS) */}
+        {/* 5. 🏆 AHL STANDINGS */}
         <Standings />
 
-        {/* 6. 🪸 FAN HUB (UNIFORM TEAL BUTTONS) */}
+        {/* 6. 🪸 FAN HUB */}
         <Text style={[styles.blockTitleCentered, { color: theme.accentGold }]}>⚡️ FAN HUB</Text>
         
         <View style={styles.gridRow}>
@@ -329,70 +324,71 @@ export default function HomeScreen() {
           
           <TouchableOpacity 
             style={[styles.gridButton, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]} 
-            onPress={() => WebBrowser.openBrowserAsync('https://sjbatterypack.com/gallery')}
+            onPress={() => router.push('/(drawer)/gallery')}
           >
             <Text style={[styles.gridButtonText, { color: theme.text }]}>📸 Fan Gallery</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Interactive Game Day Overlay Guide Modal */}
-        <Modal
-          animationType="slide"
-          transparent={true}
-          visible={infoModalVisible}
-          onRequestClose={() => setInfoModalVisible(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalContainer, { backgroundColor: theme.cardBg, borderColor: theme.accentGold }]}>
-              
-              <Text style={[styles.modalHeader, { color: theme.accentGold }]}>🏟️ REEF KNOW BEFORE YOU GO</Text>
-              <Text style={[styles.modalSub, { color: theme.subText }]}>
-                {nextGame ? `Live updates for ${nextGame.away_team} vs ${nextGame.home_team}` : 'Tech CU Arena Gameday Information'}
-              </Text>
-              
-              <View style={[styles.tabBarRow, { borderColor: theme.borderColor }]}>
-                <ScrollView horizontal={true} showsHorizontalScrollIndicator={false}>
-                  {(['TIMELINE', 'PARKING', 'SECURITY', 'FOOD'] as GuideTab[]).map((tab) => (
-                    <TouchableOpacity
-                      key={tab}
-                      style={[
-                        styles.tabItemButton, 
-                        { backgroundColor: theme.subCardBg, borderColor: theme.borderColor },
-                        activeTab === tab && { backgroundColor: theme.accentGold, borderColor: theme.accentGold }
-                      ]}
-                      onPress={() => setActiveTab(tab)}
-                    >
-                      <Text style={[
-                        styles.tabItemText, 
-                        { color: theme.subText },
-                        activeTab === tab && { color: '#001417', fontWeight: '900' }
-                      ]}>
-                        {tab === 'TIMELINE' && '🕒 Schedule'}
-                        {tab === 'PARKING' && '🚗 Parking'}
-                        {tab === 'SECURITY' && '🔒 Entry'}
-                        {tab === 'FOOD' && '🍔 Concessions'}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-
-              <ScrollView style={styles.modalScrollView} contentContainerStyle={styles.modalScrollPadding}>
-                {renderTabContent()}
-              </ScrollView>
-
-              <TouchableOpacity 
-                style={[styles.closeModalButton, { backgroundColor: theme.bg, borderTopColor: theme.borderColor }]}
-                onPress={() => setInfoModalVisible(false)}
-              >
-                <Text style={[styles.closeModalButtonText, { color: theme.accentGold }]}>Return to Home</Text>
-              </TouchableOpacity>
-
-            </View>
-          </View>
-        </Modal>
-
       </ScrollView>
+
+      {/* Interactive Game Day Overlay Guide Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={infoModalVisible}
+        onRequestClose={() => setInfoModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContainer, { backgroundColor: theme.cardBg, borderColor: theme.accentGold }]}>
+            
+            <Text style={[styles.modalHeader, { color: theme.accentGold }]}>🏟️ REEF KNOW BEFORE YOU GO</Text>
+            <Text style={[styles.modalSub, { color: theme.subText }]}>
+              {nextGame ? `Live updates for ${nextGame.away_team} vs ${nextGame.home_team}` : 'Tech CU Arena Gameday Information'}
+            </Text>
+            
+            <View style={[styles.tabBarRow, { borderColor: theme.borderColor }]}>
+              <ScrollView horizontal={true} showsHorizontalScrollIndicator={false}>
+                {(['TIMELINE', 'PARKING', 'SECURITY', 'FOOD'] as GuideTab[]).map((tab) => (
+                  <TouchableOpacity
+                    key={tab}
+                    style={[
+                      styles.tabItemButton, 
+                      { backgroundColor: theme.subCardBg, borderColor: theme.borderColor },
+                      activeTab === tab && { backgroundColor: theme.accentGold, borderColor: theme.accentGold }
+                    ]}
+                    onPress={() => setActiveTab(tab)}
+                  >
+                    <Text style={[
+                      styles.tabItemText, 
+                      { color: theme.subText },
+                      activeTab === tab && { color: '#001417', fontWeight: '900' }
+                    ]}>
+                      {tab === 'TIMELINE' && '🕒 Schedule'}
+                      {tab === 'PARKING' && '🚗 Parking'}
+                      {tab === 'SECURITY' && '🔒 Entry'}
+                      {tab === 'FOOD' && '🍔 Concessions'}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+
+            <ScrollView style={styles.modalScrollView} contentContainerStyle={styles.modalScrollPadding}>
+              {renderTabContent()}
+            </ScrollView>
+
+            <TouchableOpacity 
+              style={[styles.closeModalButton, { backgroundColor: theme.bg, borderTopColor: theme.borderColor }]}
+              onPress={() => setInfoModalVisible(false)}
+            >
+              <Text style={[styles.closeModalButtonText, { color: theme.accentGold }]}>Return to Home</Text>
+            </TouchableOpacity>
+
+          </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 }

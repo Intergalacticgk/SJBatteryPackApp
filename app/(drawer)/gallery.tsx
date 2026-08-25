@@ -20,7 +20,7 @@ import { supabase } from '../../supabase';
 import { useAppTheme } from '../../context/ThemeContext';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const GRID_ITEM_SIZE = (SCREEN_WIDTH - 36) / 3;
+const GRID_ITEM_SIZE = (SCREEN_WIDTH - 24) / 3;
 
 interface GalleryPhoto {
   id: string;
@@ -42,7 +42,6 @@ export default function GalleryScreen() {
   const [uploading, setUploading] = useState(false);
   const [session, setSession] = useState<any>(null);
 
-  // Expanded Photo Modal
   const [selectedPhoto, setSelectedPhoto] = useState<GalleryPhoto | null>(null);
   const [optionsMenuVisible, setOptionsMenuVisible] = useState(false);
 
@@ -121,7 +120,7 @@ export default function GalleryScreen() {
         type: `image/${ext}`,
       } as any);
 
-      const { data: uploadData, error: uploadError } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from('gallery-photos')
         .upload(fileName, formData);
 
@@ -229,62 +228,62 @@ export default function GalleryScreen() {
         </View>
       </View>
 
-      {/* Photo Feed */}
+      {/* Photo Feed with safe key to prevent dynamic numColumns crash */}
       {loading ? (
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
           <ActivityIndicator size="large" color={theme.accentGold} />
         </View>
-      ) : viewMode === 'TIMELINE' ? (
-        <FlatList
-          data={photos}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.timelinePadding}
-          renderItem={({ item }) => (
-            <View style={[styles.timelineCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-              <View style={styles.cardHeader}>
-                <View style={[styles.avatarBadge, { backgroundColor: theme.accentOrange }]}>
-                  <Text style={styles.avatarText}>{item.username.substring(0, 2).toUpperCase()}</Text>
-                </View>
-                <View style={{ flex: 1, marginLeft: 10 }}>
-                  <Text style={[styles.usernameText, { color: theme.text }]}>{item.username}</Text>
-                  <Text style={[styles.dateText, { color: theme.subText }]}>
-                    {new Date(item.created_at).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
-                  </Text>
-                </View>
-                <TouchableOpacity onPress={() => handleShare(item)}>
-                  <Text style={{ fontSize: 16 }}>📤</Text>
-                </TouchableOpacity>
-              </View>
-
-              <TouchableOpacity activeOpacity={0.9} onPress={() => setSelectedPhoto(item)}>
-                <Image source={{ uri: item.image_url }} style={styles.timelineImage} resizeMode="cover" />
-              </TouchableOpacity>
-
-              <View style={styles.cardFooter}>
-                <TouchableOpacity style={styles.likeBtn} onPress={() => toggleLike(item)}>
-                  <Text style={{ fontSize: 18 }}>{item.hasLiked ? '❤️' : '🤍'}</Text>
-                  <Text style={[styles.likeCount, { color: theme.text }]}>{item.likes_count}</Text>
-                </TouchableOpacity>
-                <Text style={[styles.monthPill, { color: theme.accentGold }]}>{item.month_year}</Text>
-              </View>
-            </View>
-          )}
-        />
       ) : (
         <FlatList
+          key={viewMode}
           data={photos}
           keyExtractor={(item) => item.id}
-          numColumns={3}
-          contentContainerStyle={styles.gridPadding}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={styles.gridImageWrapper}
-              activeOpacity={0.8}
-              onPress={() => setSelectedPhoto(item)}
-            >
-              <Image source={{ uri: item.image_url }} style={styles.gridImage} />
-            </TouchableOpacity>
-          )}
+          numColumns={viewMode === 'GRID' ? 3 : 1}
+          contentContainerStyle={viewMode === 'GRID' ? styles.gridPadding : styles.timelinePadding}
+          renderItem={({ item }) => {
+            if (viewMode === 'GRID') {
+              return (
+                <TouchableOpacity
+                  style={styles.gridImageWrapper}
+                  activeOpacity={0.8}
+                  onPress={() => setSelectedPhoto(item)}
+                >
+                  <Image source={{ uri: item.image_url }} style={styles.gridImage} />
+                </TouchableOpacity>
+              );
+            }
+
+            return (
+              <View style={[styles.timelineCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                <View style={styles.cardHeader}>
+                  <View style={[styles.avatarBadge, { backgroundColor: theme.accentOrange }]}>
+                    <Text style={styles.avatarText}>{item.username.substring(0, 2).toUpperCase()}</Text>
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 10 }}>
+                    <Text style={[styles.usernameText, { color: theme.text }]}>{item.username}</Text>
+                    <Text style={[styles.dateText, { color: theme.subText }]}>
+                      {new Date(item.created_at).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </Text>
+                  </View>
+                  <TouchableOpacity onPress={() => handleShare(item)}>
+                    <Text style={{ fontSize: 16 }}>📤</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <TouchableOpacity activeOpacity={0.9} onPress={() => setSelectedPhoto(item)}>
+                  <Image source={{ uri: item.image_url }} style={styles.timelineImage} resizeMode="cover" />
+                </TouchableOpacity>
+
+                <View style={styles.cardFooter}>
+                  <TouchableOpacity style={styles.likeBtn} onPress={() => toggleLike(item)}>
+                    <Text style={{ fontSize: 18 }}>{item.hasLiked ? '❤️' : '🤍'}</Text>
+                    <Text style={[styles.likeCount, { color: theme.text }]}>{item.likes_count}</Text>
+                  </TouchableOpacity>
+                  <Text style={[styles.monthPill, { color: theme.accentGold }]}>{item.month_year}</Text>
+                </View>
+              </View>
+            );
+          }}
         />
       )}
 
@@ -335,7 +334,7 @@ export default function GalleryScreen() {
         </Modal>
       )}
 
-      {/* Options Dropdown Menu */}
+      {/* Options Menu */}
       {optionsMenuVisible && selectedPhoto && (
         <Modal visible transparent animationType="none" onRequestClose={() => setOptionsMenuVisible(false)}>
           <TouchableOpacity
@@ -388,10 +387,10 @@ const styles = StyleSheet.create({
   likeBtn: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   likeCount: { fontSize: 13, fontWeight: '800' },
   monthPill: { fontSize: 11, fontWeight: '800' },
-  gridPadding: { padding: 6, paddingBottom: 80 },
-  gridImageWrapper: { margin: 3 },
-  gridImage: { width: GRID_ITEM_SIZE, height: GRID_ITEM_SIZE, borderRadius: 8 },
-  floatingAddBtn: { position: 'absolute', bottom: 20, right: 20, width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center', elevation: 6, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 4 },
+  gridPadding: { padding: 4, paddingBottom: 80 },
+  gridImageWrapper: { margin: 2 },
+  gridImage: { width: GRID_ITEM_SIZE, height: GRID_ITEM_SIZE, borderRadius: 6 },
+  floatingAddBtn: { position: 'absolute', bottom: 20, right: 20, width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center', elevation: 6 },
   floatingAddBtnText: { color: '#001417', fontSize: 32, fontWeight: '900', marginTop: -2 },
   modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'space-between' },
   modalTopBar: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: Platform.OS === 'ios' ? 50 : 20 },
