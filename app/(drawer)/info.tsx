@@ -70,9 +70,11 @@ export default function AccountScreen() {
   const [step, setStep] = useState<'PHONE' | 'OTP'>('PHONE');
 
   useEffect(() => {
+    // 🌐 Configure Native Google Sign-In with both Android/Web and iOS Client IDs
     GoogleSignin.configure({
       scopes: ['email', 'profile'],
       webClientId: '766194485121-p51pktavs4t1rbcti5t5nnbs5taftunk.apps.googleusercontent.com',
+      iosClientId: '766194485121-oagm77katqfkibgri9qjan93t4dqe9so.apps.googleusercontent.com',
       offlineAccess: true,
     });
 

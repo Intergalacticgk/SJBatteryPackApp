@@ -3,28 +3,40 @@
     "name": "SJ Battery Pack",
     "slug": "SJBatteryPackApp",
     "scheme": "sjbatterypack",
-    "version": "1.0.9",
+    "version": "1.1.2",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "userInterfaceStyle": "dark",
     "splash": {
-      "image": "./assets/images/splash.png",
+      "image": "./assets/images/splash-logo.png",
       "resizeMode": "contain",
       "backgroundColor": "#001E22"
     },
     "ios": {
-      "supportsTablet": false,
+      "supportsTablet": true,
       "bundleIdentifier": "com.sjbatterypack.myapp",
-      "buildNumber": "1.0.11",
+      "buildNumber": "1.0.16",
       "usesAppleSignIn": true,
       "icon": "./assets/images/icon.png",
+      "splash": {
+        "image": "./assets/images/splash-logo.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#001E22"
+      },
       "infoPlist": {
-        "NSCameraUsageDescription": "SJ Battery Pack needs camera access to scan gameday QR codes and collect digital win passport stamps."
+        "NSCameraUsageDescription": "SJ Battery Pack needs camera access to scan gameday QR codes and collect digital win passport stamps.",
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": [
+              "com.googleusercontent.apps.766194485121-oagm77katqfkibgri9qjan93t4dqe9so"
+            ]
+          }
+        ]
       }
     },
     "android": {
       "package": "com.sjbatterypack.myapp",
-      "versionCode": 33,
+      "versionCode": 36,
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-foreground.png",
@@ -47,8 +59,8 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash.png",
-          "imageWidth": 240,
+          "image": "./assets/images/splash-logo.png",
+          "imageWidth": 220,
           "resizeMode": "contain",
           "backgroundColor": "#001E22"
         }
@@ -56,7 +68,13 @@
       "expo-web-browser",
       "expo-font",
       "@react-native-google-signin/google-signin",
-      "expo-apple-authentication"
+      "expo-apple-authentication",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow SJ Battery Pack access to share gameday photos in the Fan Gallery."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

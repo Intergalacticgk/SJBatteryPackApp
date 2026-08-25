@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   StatusBar,
+  Alert,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { supabase } from '../../supabase';
@@ -21,7 +22,8 @@ interface ChatMessage {
   room: string;
   user_id: string;
   username: string;
-  message: string;
+  content?: string;
+  message?: string;
   created_at: string;
 }
 
@@ -49,7 +51,6 @@ export default function ChatScreen() {
 
   const flatListRef = useRef<FlatList>(null);
 
-  // 🔄 Sync auth session whenever tab comes into focus
   useFocusEffect(
     useCallback(() => {
       let isMounted = true;
@@ -82,13 +83,11 @@ export default function ChatScreen() {
     }
   };
 
-  // 📥 Fetch messages for active room
   useEffect(() => {
     if (!session?.user) return;
 
     fetchRoomMessages();
 
-    // ⚡ Realtime subscription
     const channel = supabase
       .channel(`public:chat_messages:${activeRoom}`)
       .on(
@@ -100,7 +99,11 @@ export default function ChatScreen() {
           filter: `room=eq.${activeRoom}`,
         },
         (payload) => {
-          setMessages((prev) => [...prev, payload.new as ChatMessage]);
+          setMessages((prev) => {
+            const exists = prev.some((m) => m.id === (payload.new as any).id);
+            if (exists) return prev;
+            return [...prev, payload.new as ChatMessage];
+          });
         }
       )
       .subscribe();
@@ -125,8 +128,13 @@ export default function ChatScreen() {
     setLoading(false);
   };
 
-const handleSendMessage = async () => {
-    if (!inputText.trim() || !session?.user || sending) return;
+  const handleSendMessage = async () => {
+    if (!inputText.trim() || sending) return;
+
+    if (!session?.user) {
+      Alert.alert('Sign In Required', 'Please sign in to participate in the chat.');
+      return;
+    }
 
     const messageText = inputText.trim();
     const chatHandle =
@@ -140,36 +148,42 @@ const handleSendMessage = async () => {
       room: activeRoom,
       user_id: session.user.id,
       username: chatHandle,
+      content: messageText,
       message: messageText,
     };
 
     setSending(true);
 
-    const { data, error } = await supabase
-      .from('chat_messages')
-      .insert([newMessage])
-      .select()
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from('chat_messages')
+        .insert([newMessage])
+        .select()
+        .single();
 
-    setSending(false);
-
-    if (error) {
-      Alert.alert('Chat Error', error.message || 'Failed to post message.');
-    } else {
-      setInputText('');
-      // Optimistically append message immediately if not already added by realtime listener
-      if (data) {
-        setMessages((prev) => (prev.some((m) => m.id === data.id) ? prev : [...prev, data as ChatMessage]));
+      if (error) {
+        Alert.alert('Chat Error', error.message || 'Could not send message.');
+      } else {
+        setInputText('');
+        if (data) {
+          setMessages((prev) => (prev.some((m) => m.id === data.id) ? prev : [...prev, data as ChatMessage]));
+        }
       }
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Unexpected failure.');
+    } finally {
+      setSending(false);
     }
   };
 
   const filteredMessages = searchQuery.trim()
-    ? messages.filter(
-        (m) =>
-          m.message.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    ? messages.filter((m) => {
+        const text = m.content || m.message || '';
+        return (
+          text.toLowerCase().includes(searchQuery.toLowerCase()) ||
           m.username.toLowerCase().includes(searchQuery.toLowerCase())
-      )
+        );
+      })
     : messages;
 
   if (authChecking) {
@@ -180,7 +194,6 @@ const handleSendMessage = async () => {
     );
   }
 
-  // 🔒 If user is genuinely not signed in
   if (!session) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
@@ -282,6 +295,7 @@ const handleSendMessage = async () => {
                 hour: 'numeric',
                 minute: '2-digit',
               });
+              const displayMsg = item.content || item.message || '';
 
               return (
                 <View style={[styles.messageBubbleWrapper, isMine ? styles.myBubbleWrapper : styles.otherBubbleWrapper]}>
@@ -297,7 +311,7 @@ const handleSendMessage = async () => {
                     ]}
                   >
                     <Text style={[styles.messageText, { color: isMine ? '#FFFFFF' : theme.text }]}>
-                      {item.message}
+                      {displayMsg}
                     </Text>
                     <Text style={[styles.messageTime, { color: isMine ? 'rgba(255,255,255,0.7)' : theme.subText }]}>
                       {formattedTime}
@@ -309,7 +323,7 @@ const handleSendMessage = async () => {
           />
         )}
 
-        {/* Message Input Box */}
+        {/* Message Input Bar */}
         <View style={[styles.inputBar, { backgroundColor: theme.cardBg, borderTopColor: theme.borderColor }]}>
           <TextInput
             style={[styles.messageInput, { backgroundColor: theme.subCardBg, color: theme.text, borderColor: theme.borderColor }]}

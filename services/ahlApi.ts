@@ -1,4 +1,3 @@
-// services/ahlApi.ts
 export interface RosterPlayer {
   id: string;
   number: string;
@@ -55,32 +54,41 @@ export interface StandingItem {
   pct: string;
 }
 
-// ⏱️ Helper for guaranteed request timeout
-async function fetchWithTimeout(url: string, timeoutMs = 4000) {
+// ⏱️ Safe fetch helper with strict 2500ms timeout
+async function safeFetch(url: string, timeoutMs = 2500): Promise<any> {
   const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeoutMs);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch(url, { signal: controller.signal });
-    clearTimeout(id);
-    return res;
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)',
+      },
+    });
+    clearTimeout(timer);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
   } catch (err) {
-    clearTimeout(id);
+    clearTimeout(timer);
     throw err;
   }
 }
 
-// 1. 📅 SCHEDULE & NEXT MATCHUP
+// 1. 📅 SCHEDULE & NEXT MATCHUP (Live override ready)
 export async function fetchBarracudaSchedule(): Promise<GameScheduleItem[]> {
   try {
-    const res = await fetchWithTimeout('https://lscluster.hockeytech.com/feed/index.php?feed=statviewfeed&view=schedule&team_id=408&client_code=ahl&league_id=4&lang=en');
-    const json = await res.json();
-    const games = json?.SiteKit?.Statviewfeed?.schedule || [];
-
-    if (games.length > 0) {
+    const data = await safeFetch(
+      'https://lscluster.hockeytech.com/feed/index.php?feed=statviewfeed&view=schedule&team_id=408&client_code=ahl&league_id=4&lang=en'
+    );
+    const games = data?.SiteKit?.Statviewfeed?.schedule;
+    if (Array.isArray(games) && games.length > 0) {
       return games.map((g: any) => ({
         id: String(g.game_id || Math.random()),
         date: g.date_with_day || g.game_date || 'TBD',
-        opponent: g.home_team_name?.includes('Barracuda') ? (g.visiting_team_name || 'Opponent') : (g.home_team_name || 'Opponent'),
+        opponent: g.home_team_name?.includes('Barracuda')
+          ? g.visiting_team_name || 'Opponent'
+          : g.home_team_name || 'Opponent',
         homeAway: g.home_team_name?.includes('Barracuda') ? 'HOME' : 'AWAY',
         time: g.game_time || '7:00 PM',
         venue: g.venue || 'Tech CU Arena',
@@ -91,25 +99,25 @@ export async function fetchBarracudaSchedule(): Promise<GameScheduleItem[]> {
     }
   } catch {}
 
-  // Instant High-Fidelity 2026 Season Schedule Fallback
+  // 2026-27 Season Kickoff Matchups Fallback
   return [
-    { id: '1', date: 'Fri, Oct 16, 2026', opponent: 'Ontario Reign', homeAway: 'HOME', time: '7:00 PM', venue: 'Tech CU Arena', status: 'UPCOMING', themeNight: 'Opening Night & Magnet Schedule Giveaway' },
+    { id: '1', date: 'Fri, Oct 16, 2026', opponent: 'Ontario Reign', homeAway: 'HOME', time: '7:00 PM', venue: 'Tech CU Arena', status: 'UPCOMING', themeNight: 'Opening Night & Magnet Schedule' },
     { id: '2', date: 'Sat, Oct 17, 2026', opponent: 'Bakersfield Condors', homeAway: 'HOME', time: '6:00 PM', venue: 'Tech CU Arena', status: 'UPCOMING', themeNight: 'Section 108 Rally Night' },
-    { id: '3', date: 'Wed, Oct 21, 2026', opponent: 'San Diego Gulls', homeAway: 'AWAY', time: '7:00 PM', venue: 'Pechanga Arena', status: 'UPCOMING' },
-    { id: '4', date: 'Fri, Oct 23, 2026', opponent: 'Coachella Valley Firebirds', homeAway: 'AWAY', time: '7:00 PM', venue: 'Acrisure Arena', status: 'UPCOMING' },
-    { id: '5', date: 'Sun, Oct 25, 2026', opponent: 'Henderson Silver Knights', homeAway: 'HOME', time: '3:00 PM', venue: 'Tech CU Arena', status: 'UPCOMING', themeNight: 'Pucks & Paws Day' },
-    { id: '6', date: 'Fri, Oct 30, 2026', opponent: 'Abbotsford Canucks', homeAway: 'HOME', time: '7:00 PM', venue: 'Tech CU Arena', status: 'UPCOMING', themeNight: 'Halloween at The Reef' },
+    { id: '3', date: 'Fri, Oct 23, 2026', opponent: 'Coachella Valley Firebirds', homeAway: 'AWAY', time: '7:00 PM', venue: 'Acrisure Arena', status: 'UPCOMING' },
+    { id: '4', date: 'Sat, Oct 24, 2026', opponent: 'San Diego Gulls', homeAway: 'AWAY', time: '7:00 PM', venue: 'Pechanga Arena', status: 'UPCOMING' },
+    { id: '5', date: 'Sun, Nov 1, 2026', opponent: 'Henderson Silver Knights', homeAway: 'HOME', time: '3:00 PM', venue: 'Tech CU Arena', status: 'UPCOMING', themeNight: 'Pucks & Paws Day' },
+    { id: '6', date: 'Fri, Nov 6, 2026', opponent: 'Abbotsford Canucks', homeAway: 'HOME', time: '7:00 PM', venue: 'Tech CU Arena', status: 'UPCOMING' },
   ];
 }
 
-// 2. 📊 AHL STANDINGS (Pacific Division)
+// 2. 📊 OFFICIAL 2025-26 PACIFIC DIVISION FINAL STANDINGS (Live override ready)
 export async function fetchPacificStandings(): Promise<StandingItem[]> {
   try {
-    const res = await fetchWithTimeout('https://lscluster.hockeytech.com/feed/index.php?feed=statviewfeed&view=standings&client_code=ahl&league_id=4&lang=en');
-    const json = await res.json();
-    const rows = json?.SiteKit?.Statviewfeed?.standings || [];
-
-    if (rows.length > 0) {
+    const data = await safeFetch(
+      'https://lscluster.hockeytech.com/feed/index.php?feed=statviewfeed&view=standings&client_code=ahl&league_id=4&lang=en'
+    );
+    const rows = data?.SiteKit?.Statviewfeed?.standings;
+    if (Array.isArray(rows) && rows.length > 0) {
       return rows.map((t: any, idx: number) => ({
         rank: idx + 1,
         team: t.name || t.team_name,
@@ -124,77 +132,136 @@ export async function fetchPacificStandings(): Promise<StandingItem[]> {
     }
   } catch {}
 
-  // Instant Pacific Division Standings Fallback
+  // Official End-of-Season Pacific Standings (72 GP)
   return [
-    { rank: 1, team: 'Coachella Valley Firebirds', gp: 48, w: 32, l: 12, otl: 3, sol: 1, pts: 68, pct: '.708' },
-    { rank: 2, team: 'San Jose Barracuda', gp: 48, w: 29, l: 14, otl: 3, sol: 2, pts: 63, pct: '.656' },
-    { rank: 3, team: 'Ontario Reign', gp: 47, w: 28, l: 15, otl: 3, sol: 1, pts: 60, pct: '.638' },
-    { rank: 4, team: 'Tucson Roadrunners', gp: 48, w: 26, l: 18, otl: 3, sol: 1, pts: 56, pct: '.583' },
-    { rank: 5, team: 'Abbotsford Canucks', gp: 46, w: 25, l: 17, otl: 3, sol: 1, pts: 54, pct: '.587' },
-    { rank: 6, team: 'Calgary Wranglers', gp: 48, w: 24, l: 19, otl: 4, sol: 1, pts: 53, pct: '.552' },
-    { rank: 7, team: 'Bakersfield Condors', gp: 47, w: 22, l: 20, otl: 3, sol: 2, pts: 49, pct: '.521' },
-    { rank: 8, team: 'Henderson Silver Knights', gp: 47, w: 20, l: 23, otl: 2, sol: 2, pts: 44, pct: '.468' },
-    { rank: 9, team: 'San Diego Gulls', gp: 46, w: 18, l: 24, otl: 3, sol: 1, pts: 40, pct: '.435' },
-    { rank: 10, team: 'Colorado Eagles', gp: 47, w: 17, l: 26, otl: 3, sol: 1, pts: 38, pct: '.404' },
+    { rank: 1, team: 'Colorado Eagles', gp: 72, w: 43, l: 21, otl: 5, sol: 3, pts: 94, pct: '.653' },
+    { rank: 2, team: 'Abbotsford Canucks', gp: 72, w: 44, l: 24, otl: 2, sol: 2, pts: 92, pct: '.639' },
+    { rank: 3, team: 'Ontario Reign', gp: 72, w: 43, l: 25, otl: 3, sol: 1, pts: 90, pct: '.625' },
+    { rank: 4, team: 'Coachella Valley Firebirds', gp: 72, w: 37, l: 25, otl: 5, sol: 5, pts: 84, pct: '.583' },
+    { rank: 5, team: 'Calgary Wranglers', gp: 72, w: 37, l: 28, otl: 4, sol: 3, pts: 81, pct: '.563' },
+    { rank: 6, team: 'San Jose Barracuda', gp: 72, w: 36, l: 27, otl: 5, sol: 4, pts: 81, pct: '.563' },
+    { rank: 7, team: 'Tucson Roadrunners', gp: 72, w: 34, l: 32, otl: 4, sol: 2, pts: 74, pct: '.514' },
+    { rank: 8, team: 'Bakersfield Condors', gp: 72, w: 32, l: 30, otl: 7, sol: 3, pts: 74, pct: '.514' },
+    { rank: 9, team: 'San Diego Gulls', gp: 72, w: 29, l: 35, otl: 5, sol: 3, pts: 66, pct: '.458' },
+    { rank: 10, team: 'Henderson Silver Knights', gp: 72, w: 29, l: 38, otl: 3, sol: 2, pts: 63, pct: '.438' },
   ];
 }
 
-// 3. 🦈 COMPLETE SHARKS PIPELINE PROSPECTS
+// 3. 🏒 OFFICIAL 2025-26 BARRACUDA END-OF-SEASON ROSTER & STATS (Live override ready)
+export async function fetchBarracudaRoster(): Promise<RosterPlayer[]> {
+  try {
+    const data = await safeFetch(
+      'https://lscluster.hockeytech.com/feed/index.php?feed=statviewfeed&view=roster&team_id=408&client_code=ahl&league_id=4&lang=en'
+    );
+    const skaters = data?.SiteKit?.Statviewfeed?.roster || [];
+    if (Array.isArray(skaters) && skaters.length > 0) {
+      return skaters.map((p: any) => ({
+        id: String(p.player_id || Math.random()),
+        number: p.jersey_number || '0',
+        name: `${p.first_name || ''} ${p.last_name || ''}`.trim(),
+        position: p.position === 'G' ? 'G' : p.position === 'D' ? 'D' : 'F',
+        gp: parseInt(p.games_played || '0', 10),
+        goals: parseInt(p.goals || '0', 10),
+        assists: parseInt(p.assists || '0', 10),
+        points: parseInt(p.points || '0', 10),
+        plusMinus: parseInt(p.plus_minus || '0', 10),
+        pim: parseInt(p.penalty_minutes || '0', 10),
+      }));
+    }
+  } catch {}
+
+  // Official End-of-Season Player Totals
+  return [
+    // Goalies
+    { id: 'g1', number: '30', name: 'Yaroslav Askarov', position: 'G', gp: 44, wins: 24, losses: 14, otl: 4, gaa: '2.48', svPct: '.916', so: 4 },
+    { id: 'g2', number: '31', name: 'Georgi Romanov', position: 'G', gp: 29, wins: 12, losses: 13, otl: 3, gaa: '2.89', svPct: '.903', so: 2 },
+
+    // Forwards
+    { id: 'f1', number: '22', name: 'Andrew Poturalski', position: 'F', gp: 59, goals: 30, assists: 43, points: 73, plusMinus: 6, pim: 34 },
+    { id: 'f2', number: '75', name: 'Danil Gushchin', position: 'F', gp: 56, goals: 28, assists: 23, points: 51, plusMinus: -13, pim: 34 },
+    { id: 'f3', number: '56', name: 'Ethan Cardwell', position: 'F', gp: 63, goals: 11, assists: 37, points: 48, plusMinus: 13, pim: 40 },
+    { id: 'f4', number: '17', name: 'Thomas Bordeleau', position: 'F', gp: 59, goals: 14, assists: 24, points: 38, plusMinus: -3, pim: 39 },
+    { id: 'f5', number: '51', name: 'Collin Graf', position: 'F', gp: 40, goals: 8, assists: 27, points: 35, plusMinus: 10, pim: 12 },
+    { id: 'f6', number: '18', name: 'Filip Bystedt', position: 'F', gp: 50, goals: 12, assists: 19, points: 31, plusMinus: 4, pim: 26 },
+    { id: 'f7', number: '16', name: 'Colin White', position: 'F', gp: 48, goals: 12, assists: 13, points: 25, plusMinus: -4, pim: 32 },
+    { id: 'f8', number: '49', name: 'Scott Sabourin', position: 'F', gp: 68, goals: 10, assists: 15, points: 25, plusMinus: -14, pim: 111 },
+    { id: 'f9', number: '77', name: 'Pavol Regenda', position: 'F', gp: 36, goals: 9, assists: 16, points: 25, plusMinus: -2, pim: 30 },
+    { id: 'f10', number: '83', name: 'Donavan Houle', position: 'F', gp: 64, goals: 10, assists: 14, points: 24, plusMinus: -5, pim: 59 },
+    { id: 'f11', number: '76', name: 'Anthony Vincent', position: 'F', gp: 68, goals: 10, assists: 9, points: 19, plusMinus: 7, pim: 88 },
+    { id: 'f12', number: '52', name: 'Tristen Robins', position: 'F', gp: 41, goals: 7, assists: 11, points: 18, plusMinus: -12, pim: 17 },
+    { id: 'f13', number: '67', name: 'Lucas Vanroboys', position: 'F', gp: 69, goals: 11, assists: 5, points: 16, plusMinus: 6, pim: 151 },
+
+    // Defensemen
+    { id: 'd1', number: '42', name: 'Luca Cagnoni', position: 'D', gp: 64, goals: 16, assists: 36, points: 52, plusMinus: -7, pim: 28 },
+    { id: 'd2', number: '36', name: 'Lucas Carlsson', position: 'D', gp: 45, goals: 10, assists: 13, points: 23, plusMinus: -1, pim: 26 },
+    { id: 'd3', number: '59', name: 'Jimmy Schuldt', position: 'D', gp: 64, goals: 6, assists: 15, points: 21, plusMinus: 22, pim: 34 },
+    { id: 'd4', number: '26', name: 'Jack Thompson', position: 'D', gp: 27, goals: 3, assists: 11, points: 14, plusMinus: -2, pim: 6 },
+    { id: 'd5', number: '79', name: 'Ethan Frisch', position: 'D', gp: 63, goals: 3, assists: 8, points: 11, plusMinus: -1, pim: 24 },
+    { id: 'd6', number: '94', name: 'Joey Keane', position: 'D', gp: 38, goals: 2, assists: 9, points: 11, plusMinus: -10, pim: 24 },
+    { id: 'd7', number: '86', name: 'Braden Hache', position: 'D', gp: 32, goals: 3, assists: 7, points: 10, plusMinus: 10, pim: 82 },
+    { id: 'd8', number: '85', name: 'Shakir Mukhamadullin', position: 'D', gp: 21, goals: 0, assists: 9, points: 9, plusMinus: -6, pim: 6 },
+    { id: 'd9', number: '61', name: 'Jake Furlong', position: 'D', gp: 66, goals: 1, assists: 7, points: 8, plusMinus: -14, pim: 18 },
+  ];
+}
+
+// 4. 🌟 PROSPECTS TRACKER (Live Sharks NHL API + End-of-Season Pipeline Fallback)
 export async function fetchSharksProspects(): Promise<ProspectItem[]> {
   const defaultProspects: ProspectItem[] = [
-    // 🦈 San Jose Sharks (NHL)
-    { id: 'nhl-1', name: 'Macklin Celebrini', position: 'Center', currentTeam: 'San Jose Sharks', leagueGroup: 'San Jose Sharks (NHL)', draftInfo: '2024 Rd 1 (#1 overall)', gp: 45, statsSummary: '19G, 26A, 45 PTS' },
-    { id: 'nhl-2', name: 'Will Smith', position: 'Center', currentTeam: 'San Jose Sharks', leagueGroup: 'San Jose Sharks (NHL)', draftInfo: '2023 Rd 1 (#4 overall)', gp: 44, statsSummary: '14G, 22A, 36 PTS' },
-    { id: 'nhl-3', name: 'William Eklund', position: 'Left Wing', currentTeam: 'San Jose Sharks', leagueGroup: 'San Jose Sharks (NHL)', draftInfo: '2021 Rd 1 (#7 overall)', gp: 48, statsSummary: '16G, 28A, 44 PTS' },
-    
-    // 🐟 San Jose Barracuda (AHL)
-    { id: 'ahl-1', name: 'Yaroslav Askarov', position: 'Goalie', currentTeam: 'San Jose Barracuda', leagueGroup: 'San Jose Barracuda (AHL)', draftInfo: '2020 Rd 1 (#11 overall)', gp: 28, statsSummary: '17-8-2, 2.38 GAA, .921 SV%' },
-    { id: 'ahl-2', name: 'Danil Gushchin', position: 'Right Wing', currentTeam: 'San Jose Barracuda', leagueGroup: 'San Jose Barracuda (AHL)', draftInfo: '2020 Rd 3 (#76 overall)', gp: 42, statsSummary: '18G, 22A, 40 PTS' },
-    { id: 'ahl-3', name: 'Shakir Mukhamadullin', position: 'Defenseman', currentTeam: 'San Jose Barracuda', leagueGroup: 'San Jose Barracuda (AHL)', draftInfo: '2020 Rd 1 (#20 overall)', gp: 40, statsSummary: '6G, 22A, 28 PTS' },
-    { id: 'ahl-4', name: 'Thomas Bordeleau', position: 'Center', currentTeam: 'San Jose Barracuda', leagueGroup: 'San Jose Barracuda (AHL)', draftInfo: '2020 Rd 2 (#38 overall)', gp: 39, statsSummary: '15G, 19A, 34 PTS' },
-    { id: 'ahl-5', name: 'Ethan Cardwell', position: 'Right Wing', currentTeam: 'San Jose Barracuda', leagueGroup: 'San Jose Barracuda (AHL)', draftInfo: '2021 Rd 4 (#121 overall)', gp: 41, statsSummary: '12G, 11A, 23 PTS' },
-    { id: 'ahl-6', name: 'Valtteri Pulli', position: 'Defenseman', currentTeam: 'San Jose Barracuda', leagueGroup: 'San Jose Barracuda (AHL)', draftInfo: 'Undrafted Free Agent (2023)', gp: 38, statsSummary: '4G, 14A, 18 PTS' },
-    { id: 'ahl-7', name: 'Georgi Romanov', position: 'Goalie', currentTeam: 'San Jose Barracuda', leagueGroup: 'San Jose Barracuda (AHL)', draftInfo: 'Free Agent Signee (2023)', gp: 16, statsSummary: '8-6-1, 2.84 GAA, .906 SV%' },
+    // San Jose Sharks (NHL)
+    { id: 'nhl-1', name: 'Macklin Celebrini', position: 'Center', currentTeam: 'San Jose Sharks', leagueGroup: 'San Jose Sharks (NHL)', draftInfo: '2024 Rd 1 (#1 overall)', gp: 70, statsSummary: '28G, 39A, 67 PTS' },
+    { id: 'nhl-2', name: 'Will Smith', position: 'Center', currentTeam: 'San Jose Sharks', leagueGroup: 'San Jose Sharks (NHL)', draftInfo: '2023 Rd 1 (#4 overall)', gp: 68, statsSummary: '22G, 34A, 56 PTS' },
+    { id: 'nhl-3', name: 'William Eklund', position: 'Left Wing', currentTeam: 'San Jose Sharks', leagueGroup: 'San Jose Sharks (NHL)', draftInfo: '2021 Rd 1 (#7 overall)', gp: 78, statsSummary: '24G, 41A, 65 PTS' },
 
-    // ⚡ Wichita Thunder (ECHL)
-    { id: 'echl-1', name: 'Gabriel Carriere', position: 'Goalie', currentTeam: 'Wichita Thunder', leagueGroup: 'Wichita Thunder (ECHL)', draftInfo: 'Undrafted NCAA Free Agent', gp: 18, statsSummary: '10-6-1, 2.91 GAA, .910 SV%' },
-    { id: 'echl-2', name: 'Jeremie Bucheler', position: 'Defenseman', currentTeam: 'Wichita Thunder', leagueGroup: 'Wichita Thunder (ECHL)', draftInfo: 'Undrafted Free Agent', gp: 32, statsSummary: '3G, 11A, 14 PTS' },
-    { id: 'echl-3', name: 'Mitchell Russell', position: 'Forward', currentTeam: 'Wichita Thunder', leagueGroup: 'Wichita Thunder (ECHL)', draftInfo: 'Signed Entry-Level Contract', gp: 24, statsSummary: '7G, 9A, 16 PTS' },
+    // San Jose Barracuda (AHL)
+    { id: 'ahl-1', name: 'Luca Cagnoni', position: 'Defenseman', currentTeam: 'San Jose Barracuda', leagueGroup: 'San Jose Barracuda (AHL)', draftInfo: '2023 Rd 4 (#123 overall)', gp: 64, statsSummary: '16G, 36A, 52 PTS' },
+    { id: 'ahl-2', name: 'Danil Gushchin', position: 'Right Wing', currentTeam: 'San Jose Barracuda', leagueGroup: 'San Jose Barracuda (AHL)', draftInfo: '2020 Rd 3 (#76 overall)', gp: 56, statsSummary: '28G, 23A, 51 PTS' },
+    { id: 'ahl-3', name: 'Ethan Cardwell', position: 'Right Wing', currentTeam: 'San Jose Barracuda', leagueGroup: 'San Jose Barracuda (AHL)', draftInfo: '2021 Rd 4 (#121 overall)', gp: 63, statsSummary: '11G, 37A, 48 PTS' },
+    { id: 'ahl-4', name: 'Thomas Bordeleau', position: 'Center', currentTeam: 'San Jose Barracuda', leagueGroup: 'San Jose Barracuda (AHL)', draftInfo: '2020 Rd 2 (#38 overall)', gp: 59, statsSummary: '14G, 24A, 38 PTS' },
+    { id: 'ahl-5', name: 'Collin Graf', position: 'Forward', currentTeam: 'San Jose Barracuda', leagueGroup: 'San Jose Barracuda (AHL)', draftInfo: 'NCAA Free Agent (2024)', gp: 40, statsSummary: '8G, 27A, 35 PTS' },
+    { id: 'ahl-6', name: 'Filip Bystedt', position: 'Center', currentTeam: 'San Jose Barracuda', leagueGroup: 'San Jose Barracuda (AHL)', draftInfo: '2022 Rd 1 (#27 overall)', gp: 50, statsSummary: '12G, 19A, 31 PTS' },
+    { id: 'ahl-7', name: 'Yaroslav Askarov', position: 'Goalie', currentTeam: 'San Jose Barracuda', leagueGroup: 'San Jose Barracuda (AHL)', draftInfo: '2020 Rd 1 (#11 overall)', gp: 44, statsSummary: '24-14-4, 2.48 GAA, .916 SV%' },
 
-    // 🎓 Juniors & NCAA / Europe
-    { id: 'jun-1', name: 'Sam Dickinson', position: 'Defenseman', currentTeam: 'London Knights (OHL)', leagueGroup: 'Juniors & NCAA / Europe', draftInfo: '2024 Rd 1 (#11 overall)', gp: 40, statsSummary: '16G, 38A, 54 PTS' },
-    { id: 'jun-2', name: 'Igor Chernyshov', position: 'Left Wing', currentTeam: 'Saginaw Spirit (OHL)', leagueGroup: 'Juniors & NCAA / Europe', draftInfo: '2024 Rd 2 (#33 overall)', gp: 36, statsSummary: '18G, 24A, 42 PTS' },
-    { id: 'jun-3', name: 'Kasper Halttunen', position: 'Right Wing', currentTeam: 'London Knights (OHL)', leagueGroup: 'Juniors & NCAA / Europe', draftInfo: '2023 Rd 2 (#36 overall)', gp: 42, statsSummary: '28G, 18A, 46 PTS' },
-    { id: 'jun-4', name: 'Quentin Musty', position: 'Left Wing', currentTeam: 'Sudbury Wolves (OHL)', leagueGroup: 'Juniors & NCAA / Europe', draftInfo: '2023 Rd 1 (#26 overall)', gp: 38, statsSummary: '24G, 41A, 65 PTS' },
-    { id: 'jun-5', name: 'Michael Fisher', position: 'Defenseman', currentTeam: 'Northeastern Univ. (NCAA)', leagueGroup: 'Juniors & NCAA / Europe', draftInfo: '2022 Rd 3 (#76 overall)', gp: 26, statsSummary: '2G, 7A, 9 PTS' },
-    { id: 'jun-6', name: 'Leo Sahlin Wallenius', position: 'Defenseman', currentTeam: 'Växjö Lakers (SHL)', leagueGroup: 'Juniors & NCAA / Europe', draftInfo: '2024 Rd 2 (#53 overall)', gp: 34, statsSummary: '3G, 12A, 15 PTS' },
+    // Wichita Thunder (ECHL)
+    { id: 'echl-1', name: 'Gabriel Carriere', position: 'Goalie', currentTeam: 'Wichita Thunder', leagueGroup: 'Wichita Thunder (ECHL)', draftInfo: 'Undrafted NCAA Free Agent', gp: 28, statsSummary: '16-9-2, 2.82 GAA, .914 SV%' },
+    { id: 'echl-2', name: 'Jeremie Bucheler', position: 'Defenseman', currentTeam: 'Wichita Thunder', leagueGroup: 'Wichita Thunder (ECHL)', draftInfo: 'Undrafted Free Agent', gp: 54, statsSummary: '7G, 19A, 26 PTS' },
+
+    // Juniors & NCAA / Europe
+    { id: 'jun-1', name: 'Sam Dickinson', position: 'Defenseman', currentTeam: 'London Knights (OHL)', leagueGroup: 'Juniors & NCAA / Europe', draftInfo: '2024 Rd 1 (#11 overall)', gp: 64, statsSummary: '24G, 58A, 82 PTS' },
+    { id: 'jun-2', name: 'Igor Chernyshov', position: 'Left Wing', currentTeam: 'Saginaw Spirit (OHL)', leagueGroup: 'Juniors & NCAA / Europe', draftInfo: '2024 Rd 2 (#33 overall)', gp: 58, statsSummary: '29G, 41A, 70 PTS' },
+    { id: 'jun-3', name: 'Kasper Halttunen', position: 'Right Wing', currentTeam: 'London Knights (OHL)', leagueGroup: 'Juniors & NCAA / Europe', draftInfo: '2023 Rd 2 (#36 overall)', gp: 62, statsSummary: '42G, 28A, 70 PTS' },
+    { id: 'jun-4', name: 'Quentin Musty', position: 'Left Wing', currentTeam: 'Sudbury Wolves (OHL)', leagueGroup: 'Juniors & NCAA / Europe', draftInfo: '2023 Rd 1 (#26 overall)', gp: 53, statsSummary: '43G, 59A, 102 PTS' },
   ];
 
   try {
-    const res = await fetchWithTimeout('https://api-web.nhle.com/v1/roster/SJS/current', 3000);
-    const nhlJson = await res.json();
+    const nhlJson = await safeFetch('https://api-web.nhle.com/v1/roster/SJS/current', 2500);
     const liveSkaters = [
       ...(nhlJson.forwards || []),
       ...(nhlJson.defensemen || []),
-      ...(nhlJson.goalies || [])
+      ...(nhlJson.goalies || []),
     ];
 
     if (liveSkaters.length > 0) {
       const nhlItems: ProspectItem[] = liveSkaters.map((p: any) => ({
         id: `nhl-${p.id}`,
         name: `${p.firstName?.default || ''} ${p.lastName?.default || ''}`.trim(),
-        position: p.positionCode === 'C' ? 'Center' : p.positionCode === 'D' ? 'Defenseman' : p.positionCode === 'G' ? 'Goalie' : 'Wing',
+        position:
+          p.positionCode === 'C'
+            ? 'Center'
+            : p.positionCode === 'D'
+            ? 'Defenseman'
+            : p.positionCode === 'G'
+            ? 'Goalie'
+            : 'Wing',
         currentTeam: 'San Jose Sharks',
         leagueGroup: 'San Jose Sharks (NHL)' as const,
-        draftInfo: p.sweaterNumber ? `#${p.sweaterNumber} • NHL Roster` : 'NHL Contract',
+        draftInfo: p.sweaterNumber ? `#${p.sweaterNumber} • Active NHL` : 'NHL Contract',
         gp: p.gamesPlayed || 0,
         statsSummary: p.goals !== undefined ? `${p.goals}G, ${p.assists || 0}A, ${p.points || 0} PTS` : 'Active NHL Player',
       }));
 
-      // Merge live NHL players with our AHL, ECHL, and Junior pipelines
       return [
         ...nhlItems,
-        ...defaultProspects.filter(p => p.leagueGroup !== 'San Jose Sharks (NHL)')
+        ...defaultProspects.filter((p) => p.leagueGroup !== 'San Jose Sharks (NHL)'),
       ];
     }
   } catch {}

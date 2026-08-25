@@ -1,136 +1,201 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  StyleSheet, 
-  Text, 
-  View, 
-  ScrollView, 
-  TouchableOpacity, 
-  ActivityIndicator, 
-  SafeAreaView, 
-  StatusBar 
+import {
+  StyleSheet,
+  Text,
+  View,
+  SafeAreaView,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
+  StatusBar,
 } from 'react-native';
-import { fetchBarracudaRoster, RosterPlayer } from '../../services/ahlApi';
 import { useAppTheme } from '../../context/ThemeContext';
+import { fetchBarracudaRoster, RosterPlayer } from '../../services/ahlApi';
 
 export default function RosterScreen() {
   const { theme } = useAppTheme();
-  const [tab, setTab] = useState<'F' | 'D' | 'G'>('F');
-  const [roster, setRoster] = useState<{
-    forwards: RosterPlayer[];
-    defensemen: RosterPlayer[];
-    goalies: RosterPlayer[];
-  }>({ forwards: [], defensemen: [], goalies: [] });
-  const [loading, setLoading] = useState(true);
+  const [selectedPos, setSelectedPos] = useState<'ALL' | 'F' | 'D' | 'G'>('ALL');
+  const [players, setPlayers] = useState<RosterPlayer[]>([]);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    async function loadData() {
-      setLoading(true);
-      const data = await fetchBarracudaRoster();
-      setRoster(data);
-      setLoading(false);
-    }
-    loadData();
+    let isMounted = true;
+    const loadRoster = async () => {
+      try {
+        const data = await fetchBarracudaRoster();
+        if (isMounted && Array.isArray(data) && data.length > 0) {
+          setPlayers(data);
+        }
+      } catch (e) {
+        console.warn('Roster load fallback active', e);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+    loadRoster();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
-  const activePlayers = tab === 'F' ? roster.forwards : tab === 'D' ? roster.defensemen : roster.goalies;
+  const safePlayers = Array.isArray(players) ? players : [];
+  const filteredPlayers = selectedPos === 'ALL'
+    ? safePlayers
+    : safePlayers.filter((p) => p && p.position === selectedPos);
+
+  const forwardsCount = safePlayers.filter((p) => p?.position === 'F').length;
+  const defenseCount = safePlayers.filter((p) => p?.position === 'D').length;
+  const goaliesCount = safePlayers.filter((p) => p?.position === 'G').length;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.cardBg} />
 
-      {/* Position Selector Bar */}
-      <View style={[styles.tabBar, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+      {/* Filter Tabs */}
+      <View style={[styles.tabBar, { backgroundColor: theme.cardBg, borderBottomColor: theme.borderColor }]}>
         <TouchableOpacity
-          style={[styles.tabBtn, tab === 'F' && { backgroundColor: theme.subCardBg, borderColor: theme.accentGold, borderWidth: 1 }]}
-          onPress={() => setTab('F')}
+          style={[styles.tabBtn, selectedPos === 'ALL' && { backgroundColor: theme.accentGold }]}
+          onPress={() => setSelectedPos('ALL')}
         >
-          <Text style={[styles.tabText, { color: tab === 'F' ? theme.accentGold : theme.subText }]}>🏒 Forwards ({roster.forwards.length})</Text>
+          <Text style={[styles.tabBtnText, { color: selectedPos === 'ALL' ? '#001417' : theme.text }]}>
+            ALL ({safePlayers.length})
+          </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.tabBtn, tab === 'D' && { backgroundColor: theme.subCardBg, borderColor: theme.accentGold, borderWidth: 1 }]}
-          onPress={() => setTab('D')}
+          style={[styles.tabBtn, selectedPos === 'F' && { backgroundColor: theme.accentGold }]}
+          onPress={() => setSelectedPos('F')}
         >
-          <Text style={[styles.tabText, { color: tab === 'D' ? theme.accentGold : theme.subText }]}>🛡️ Defense ({roster.defensemen.length})</Text>
+          <Text style={[styles.tabBtnText, { color: selectedPos === 'F' ? '#001417' : theme.text }]}>
+            FORWARDS ({forwardsCount})
+          </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.tabBtn, tab === 'G' && { backgroundColor: theme.subCardBg, borderColor: theme.accentGold, borderWidth: 1 }]}
-          onPress={() => setTab('G')}
+          style={[styles.tabBtn, selectedPos === 'D' && { backgroundColor: theme.accentGold }]}
+          onPress={() => setSelectedPos('D')}
         >
-          <Text style={[styles.tabText, { color: tab === 'G' ? theme.accentGold : theme.subText }]}>🥅 Goalies ({roster.goalies.length})</Text>
+          <Text style={[styles.tabBtnText, { color: selectedPos === 'D' ? '#001417' : theme.text }]}>
+            DEFENSE ({defenseCount})
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.tabBtn, selectedPos === 'G' && { backgroundColor: theme.accentGold }]}
+          onPress={() => setSelectedPos('G')}
+        >
+          <Text style={[styles.tabBtnText, { color: selectedPos === 'G' ? '#001417' : theme.text }]}>
+            GOALIES ({goaliesCount})
+          </Text>
         </TouchableOpacity>
       </View>
 
-      {loading ? (
-        <View style={styles.loadingBox}>
-          <ActivityIndicator size="large" color={theme.accentGold} />
-          <Text style={[styles.loadingText, { color: theme.accentGold }]}>Loading Roster Stats...</Text>
+      <ScrollView contentContainerStyle={styles.contentPadding}>
+        <View style={[styles.headerCard, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}>
+          <Text style={[styles.headerTitle, { color: theme.accentGold }]}>🏒 BARRACUDA ROSTER & STATS</Text>
+          <Text style={[styles.headerSub, { color: theme.subText }]}>2025–26 Official Final Season Totals</Text>
         </View>
-      ) : (
-        <ScrollView contentContainerStyle={styles.scrollList}>
-          {activePlayers.map((player) => (
-            <View key={player.id} style={[styles.playerCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-              
-              <View style={styles.cardTop}>
-                <View style={[styles.numberCircle, { backgroundColor: theme.subCardBg, borderColor: theme.accentGold }]}>
-                  <Text style={[styles.numberText, { color: theme.accentGold }]}>#{player.number}</Text>
-                </View>
-                <View style={styles.nameBlock}>
-                  <Text style={[styles.playerName, { color: theme.text }]}>{player.name}</Text>
-                  <Text style={[styles.playerPos, { color: theme.subText }]}>
-                    {player.position === 'F' ? 'Forward' : player.position === 'D' ? 'Defenseman' : 'Goaltender'}
-                  </Text>
-                </View>
-              </View>
 
-              {/* Stats Grid */}
-              <View style={[styles.statsGrid, { backgroundColor: theme.isDark ? '#001417' : '#E6ECEE' }]}>
-                {player.position === 'G' ? (
-                  <>
-                    <View style={styles.statCol}><Text style={[styles.statNum, { color: theme.text }]}>{player.gp}</Text><Text style={[styles.statLbl, { color: theme.subText }]}>GP</Text></View>
-                    <View style={styles.statCol}><Text style={[styles.statNum, { color: theme.accentGold }]}>{player.wins}-{player.losses}-{player.otl}</Text><Text style={[styles.statLbl, { color: theme.subText }]}>W-L-OTL</Text></View>
-                    <View style={styles.statCol}><Text style={[styles.statNum, { color: theme.text }]}>{player.gaa}</Text><Text style={[styles.statLbl, { color: theme.subText }]}>GAA</Text></View>
-                    <View style={styles.statCol}><Text style={[styles.statNum, { color: '#2ecc71' }]}>{player.svPct}</Text><Text style={[styles.statLbl, { color: theme.subText }]}>SV%</Text></View>
-                    <View style={styles.statCol}><Text style={[styles.statNum, { color: theme.accentGold }]}>{player.so}</Text><Text style={[styles.statLbl, { color: theme.subText }]}>SO</Text></View>
-                  </>
+        {loading && safePlayers.length === 0 ? (
+          <ActivityIndicator size="large" color={theme.accentGold} style={{ marginTop: 40 }} />
+        ) : (
+          filteredPlayers.map((item) => {
+            if (!item) return null;
+            const isGoalie = item.position === 'G';
+
+            return (
+              <View
+                key={item.id || item.number || Math.random().toString()}
+                style={[styles.playerCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
+              >
+                <View style={styles.playerTop}>
+                  <View style={[styles.numberBadge, { backgroundColor: theme.accentOrange }]}>
+                    <Text style={styles.numberText}>#{item.number || '0'}</Text>
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 10 }}>
+                    <Text style={[styles.playerName, { color: theme.text }]}>{item.name || 'Player'}</Text>
+                    <Text style={[styles.playerPos, { color: theme.accentGold }]}>
+                      {item.position === 'F' ? 'Forward' : item.position === 'D' ? 'Defenseman' : 'Goaltender'}
+                    </Text>
+                  </View>
+                  <View style={styles.gpContainer}>
+                    <Text style={[styles.gpVal, { color: theme.text }]}>{item.gp ?? 0}</Text>
+                    <Text style={[styles.gpLabel, { color: theme.subText }]}>GP</Text>
+                  </View>
+                </View>
+
+                {isGoalie ? (
+                  <View style={[styles.statRow, { backgroundColor: theme.subCardBg, borderTopColor: theme.borderColor }]}>
+                    <View style={styles.statCol}>
+                      <Text style={[styles.statNum, { color: theme.text }]}>{item.wins ?? 0}-{item.losses ?? 0}-{item.otl ?? 0}</Text>
+                      <Text style={[styles.statLabel, { color: theme.subText }]}>RECORD</Text>
+                    </View>
+                    <View style={styles.statCol}>
+                      <Text style={[styles.statNum, { color: theme.accentGold }]}>{item.gaa || '0.00'}</Text>
+                      <Text style={[styles.statLabel, { color: theme.subText }]}>GAA</Text>
+                    </View>
+                    <View style={styles.statCol}>
+                      <Text style={[styles.statNum, { color: theme.accentGold }]}>{item.svPct || '.000'}</Text>
+                      <Text style={[styles.statLabel, { color: theme.subText }]}>SV%</Text>
+                    </View>
+                    <View style={styles.statCol}>
+                      <Text style={[styles.statNum, { color: theme.text }]}>{item.so ?? 0}</Text>
+                      <Text style={[styles.statLabel, { color: theme.subText }]}>SO</Text>
+                    </View>
+                  </View>
                 ) : (
-                  <>
-                    <View style={styles.statCol}><Text style={[styles.statNum, { color: theme.text }]}>{player.gp}</Text><Text style={[styles.statLbl, { color: theme.subText }]}>GP</Text></View>
-                    <View style={styles.statCol}><Text style={[styles.statNum, { color: theme.text }]}>{player.goals}</Text><Text style={[styles.statLbl, { color: theme.subText }]}>G</Text></View>
-                    <View style={styles.statCol}><Text style={[styles.statNum, { color: theme.text }]}>{player.assists}</Text><Text style={[styles.statLbl, { color: theme.subText }]}>A</Text></View>
-                    <View style={styles.statCol}><Text style={[styles.statNum, { color: theme.accentGold }]}>{player.points}</Text><Text style={[styles.statLbl, { color: theme.subText }]}>PTS</Text></View>
-                    <View style={styles.statCol}><Text style={[styles.statNum, { color: (player.plusMinus || 0) >= 0 ? '#2ecc71' : '#e74c3c' }]}>{(player.plusMinus || 0) > 0 ? `+${player.plusMinus}` : player.plusMinus}</Text><Text style={[styles.statLbl, { color: theme.subText }]}>+/-</Text></View>
-                    <View style={styles.statCol}><Text style={[styles.statNum, { color: theme.text }]}>{player.pim}</Text><Text style={[styles.statLbl, { color: theme.subText }]}>PIM</Text></View>
-                  </>
+                  <View style={[styles.statRow, { backgroundColor: theme.subCardBg, borderTopColor: theme.borderColor }]}>
+                    <View style={styles.statCol}>
+                      <Text style={[styles.statNum, { color: theme.accentGold }]}>{item.goals ?? 0}</Text>
+                      <Text style={[styles.statLabel, { color: theme.subText }]}>G</Text>
+                    </View>
+                    <View style={styles.statCol}>
+                      <Text style={[styles.statNum, { color: theme.accentGold }]}>{item.assists ?? 0}</Text>
+                      <Text style={[styles.statLabel, { color: theme.subText }]}>A</Text>
+                    </View>
+                    <View style={styles.statCol}>
+                      <Text style={[styles.statNum, { color: theme.accentGold }]}>{item.points ?? 0}</Text>
+                      <Text style={[styles.statLabel, { color: theme.subText }]}>PTS</Text>
+                    </View>
+                    <View style={styles.statCol}>
+                      <Text style={[styles.statNum, { color: theme.text }]}>{(item.plusMinus ?? 0) > 0 ? `+${item.plusMinus}` : item.plusMinus ?? 0}</Text>
+                      <Text style={[styles.statLabel, { color: theme.subText }]}>+/-</Text>
+                    </View>
+                    <View style={styles.statCol}>
+                      <Text style={[styles.statNum, { color: theme.text }]}>{item.pim ?? 0}</Text>
+                      <Text style={[styles.statLabel, { color: theme.subText }]}>PIM</Text>
+                    </View>
+                  </View>
                 )}
               </View>
-
-            </View>
-          ))}
-        </ScrollView>
-      )}
+            );
+          })
+        )}
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  tabBar: { flexDirection: 'row', marginHorizontal: 14, marginTop: 10, marginBottom: 8, borderRadius: 12, padding: 3, borderWidth: 1 },
-  tabBtn: { flex: 1, paddingVertical: 8, borderRadius: 9, alignItems: 'center' },
-  tabText: { fontSize: 11, fontWeight: '800' },
-  scrollList: { padding: 14, paddingBottom: 40 },
-  loadingBox: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  loadingText: { marginTop: 10, fontWeight: '800' },
-  playerCard: { borderRadius: 12, padding: 12, marginBottom: 10, borderWidth: 1 },
-  cardTop: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
-  numberCircle: { width: 38, height: 38, borderRadius: 19, justifyContent: 'center', alignItems: 'center', borderWidth: 1.5 },
-  numberText: { fontSize: 13, fontWeight: '900' },
-  nameBlock: { flex: 1 },
-  playerName: { fontSize: 15, fontWeight: '900' },
-  playerPos: { fontSize: 11, fontWeight: '600', marginTop: 1 },
-  statsGrid: { flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 8, borderRadius: 8 },
-  statCol: { alignItems: 'center' },
+  tabBar: { flexDirection: 'row', padding: 8, borderBottomWidth: 1, gap: 6 },
+  tabBtn: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  tabBtnText: { fontSize: 11, fontWeight: '800' },
+  contentPadding: { padding: 14, paddingBottom: 40 },
+  headerCard: { padding: 14, borderRadius: 12, borderWidth: 1, marginBottom: 12, alignItems: 'center' },
+  headerTitle: { fontSize: 16, fontWeight: '900', letterSpacing: 0.5 },
+  headerSub: { fontSize: 11, fontWeight: '600', marginTop: 2 },
+  playerCard: { borderRadius: 12, borderWidth: 1, marginBottom: 10, overflow: 'hidden' },
+  playerTop: { flexDirection: 'row', alignItems: 'center', padding: 12 },
+  numberBadge: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
+  numberText: { color: '#FFFFFF', fontSize: 14, fontWeight: '900' },
+  playerName: { fontSize: 15, fontWeight: '800' },
+  playerPos: { fontSize: 12, fontWeight: '700', marginTop: 1 },
+  gpContainer: { alignItems: 'center', paddingHorizontal: 6 },
+  gpVal: { fontSize: 16, fontWeight: '900' },
+  gpLabel: { fontSize: 9, fontWeight: '700' },
+  statRow: { flexDirection: 'row', borderTopWidth: 1, paddingVertical: 8, paddingHorizontal: 6 },
+  statCol: { flex: 1, alignItems: 'center' },
   statNum: { fontSize: 13, fontWeight: '900' },
-  statLbl: { fontSize: 9, fontWeight: '700', marginTop: 1 },
+  statLabel: { fontSize: 9, fontWeight: '700', marginTop: 1 },
 });

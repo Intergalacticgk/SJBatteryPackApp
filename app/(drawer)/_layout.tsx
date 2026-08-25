@@ -104,7 +104,13 @@ function DrawerNavigation() {
         {/* 8. 💬 Chat */}
         <Drawer.Screen name="chat" options={{ drawerLabel: 'Chat', title: 'Supporter Chat' }} />
 
-        {/* 9. 👤 Account */}
+        {/* 8. 📸 Fan Gallery */}
+        <Drawer.Screen name="gallery" options={{ drawerLabel: 'Fan Gallery', title: 'Reef Fan Gallery' }} />
+
+        {/* 9. 🗳️ Polls */}
+        <Drawer.Screen name="polls" options={{ drawerLabel: 'Polls', title: 'Supporter Polls' }} />
+
+        {/* 10. 👤 Account */}
         <Drawer.Screen name="info" options={{ drawerLabel: 'Account', title: 'My Account & Auth' }} />
       </Drawer>
     </GestureHandlerRootView>
