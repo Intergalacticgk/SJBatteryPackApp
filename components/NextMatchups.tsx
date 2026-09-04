@@ -102,10 +102,10 @@ export default function NextMatchups() {
                 </View>
 
                 <View style={styles.teamsRow}>
-                  {/* San Jose Barracuda: Teal fill + Orange border */}
+                  {/* San Jose Barracuda: Teal fill (#266B73) + Solid Black Outline */}
                   <View style={styles.teamCol}>
-                    <View style={[styles.teamCircle, { backgroundColor: '#002D33', borderColor: '#FF6B00' }]}>
-                      <Text style={[styles.teamCircleText, { color: '#FFFFFF' }]}>SJ</Text>
+                    <View style={[styles.teamCircle, styles.sjCircle]}>
+                      <Text style={styles.sjCircleText}>SJ</Text>
                     </View>
                     <Text style={[styles.teamLabel, { color: theme.text }]}>Barracuda</Text>
                   </View>
@@ -157,7 +157,9 @@ const styles = StyleSheet.create({
   dateText: { fontSize: 11, fontWeight: '700' },
   teamsRow: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', marginVertical: 4 },
   teamCol: { alignItems: 'center', width: 75 },
-  teamCircle: { width: 42, height: 42, borderRadius: 21, justifyContent: 'center', alignItems: 'center', borderWidth: 2, marginBottom: 4 },
+  teamCircle: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', borderWidth: 2, marginBottom: 4 },
+  sjCircle: { backgroundColor: '#266B73', borderColor: '#000000' },
+  sjCircleText: { color: '#FFFFFF', fontWeight: '900', fontSize: 14 },
   teamCircleText: { fontWeight: '900', fontSize: 13 },
   teamLabel: { fontSize: 11, fontWeight: '800', textAlign: 'center' },
   vsText: { fontWeight: '900', fontSize: 11 },

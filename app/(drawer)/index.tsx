@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   StyleSheet, 
   Text, 
@@ -9,7 +9,8 @@ import {
   Alert, 
   Modal, 
   SafeAreaView, 
-  StatusBar 
+  StatusBar,
+  RefreshControl
 } from 'react-native';
 import * as WebBrowser from 'expo-web-browser'; 
 import { useRouter } from 'expo-router'; 
@@ -21,12 +22,14 @@ import { useAppTheme } from '../../context/ThemeContext';
 
 interface UpcomingGame {
   id: string;
-  home_team: string;
-  away_team: string;
   game_date: string;
+  date_display?: string;
   game_time: string;
-  location: string;
-  status: string;
+  opponent: string;
+  opponent_abbr: string;
+  home_away: 'HOME' | 'AWAY';
+  theme_night?: string;
+  promo?: string;
 }
 
 type GuideTab = 'TIMELINE' | 'PARKING' | 'SECURITY' | 'FOOD';
@@ -35,6 +38,8 @@ export default function HomeScreen() {
   const router = useRouter(); 
   const { theme } = useAppTheme();
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [nextGame, setNextGame] = useState<UpcomingGame | null>(null);
   const [isGameWindowOpen, setIsGameWindowOpen] = useState(false);
   const [infoModalVisible, setInfoModalVisible] = useState(false);
@@ -42,25 +47,40 @@ export default function HomeScreen() {
 
   const SPOT_HERO_URL = "https://spothero.com/search?kind=destination&id=98853&%243p=a_hasoffers&%24affiliate_json=http%3A%2F%2Ftracking.spothero.com%2Faff_c%3Foffer_id%3D1%26aff_id%3D1822%26source%3Dtechcu%26aff_sub2%3Dparkingpage%26aff_sub3%3Dlink%26format%3Djson&operator_id=16236&_branch_match_id=1160313675964026424&utm_source=Partnerships&utm_campaign=Tune_Platform&utm_medium=paid+advertising&_branch_referrer=H4sIAAAAAAAAA32RwW7CMBBEvyY%2BQmJDCJWsqiri2AvqOXKcDXZJYtd2WnHh27sONIVSVfJlZ%2B2dfWMVgvUP87m3JihwZiasnbW6P8yDzyx9ed9B9njQfc1r8EH3ImjTE13zdVEsGUnoglkuSiW8aRpw%2Fm9FNI1utQhQvnnTc4WmCXtK6BZPcEKiwX42rSBNhzq%2BKWXCtuOUUxK4T22QJzaN8LgpKsfZmcBKwDiCVHC43%2FFBR1KxwcbQVe%2FhpMGxEQlQa4zoRsI5rEWPBiWCiGc9yynIyuHZc1k%2Fb3uUUCaakcN2ELmMCOPMqA7T6hXGSrZaHS53SVQNpwYq8qvIqX7C0kNWqksVyUazHy8aHUg7OQS%2BP%2BOJ1t5nkD9EOkT%2BNigdp%2Blq4Y2mHqtUeV8VWjEmJcvqFi3SX3N6INsZGiZcKOjizE4U2%2FA6cWBEUv8En4wBOyTcsz8jZhZ89yITN%2F4cmt8gcgckVLk%2FJyQF6OPzdsnLm04Pjz8qZDr4An%2F32gtICAAA%3D&view=dl&sc_src=email_810903&sc_lid=115904702&sc_uid=EylLZSAwqa&sc_llid=868&sc_eh=8a76f9a613a0bf8c1";
 
-  const formatTimeTo12Hour = (timeStr: string) => {
+  const formatGameTimeDisplay = (timeStr?: string) => {
     if (!timeStr) return 'TBD';
+    if (timeStr.toUpperCase().includes('AM') || timeStr.toUpperCase().includes('PM')) {
+      return `${timeStr} PST`;
+    }
     const [hoursStr, minutesStr] = timeStr.split(':');
     let hours = parseInt(hoursStr, 10);
-    const ampm = hours >= 12 ? 'pm' : 'am';
-    hours = hours % 12;
-    hours = hours ? hours : 12; 
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12 || 12; 
     return `${hours}:${minutesStr} ${ampm} PST`;
   };
 
-  const getCalculatedDoorTimes = (timeStr: string) => {
+  const getCalculatedDoorTimes = (timeStr?: string) => {
     if (!timeStr) return { memberTime: '5:45 PM', generalTime: '6:00 PM' };
     
-    const [hoursStr, minutesStr] = timeStr.split(':');
-    const gameHours = parseInt(hoursStr, 10);
-    const gameMinutes = parseInt(minutesStr, 10);
+    let hours = 19;
+    let minutes = 0;
+
+    const cleanTime = timeStr.trim().toUpperCase();
+    if (cleanTime.includes('AM') || cleanTime.includes('PM')) {
+      const parts = cleanTime.replace('PST', '').trim().split(':');
+      hours = parseInt(parts[0], 10);
+      const minParts = parts[1].split(' ');
+      minutes = parseInt(minParts[0], 10);
+      if (cleanTime.includes('PM') && hours < 12) hours += 12;
+      if (cleanTime.includes('AM') && hours === 12) hours = 0;
+    } else {
+      const parts = cleanTime.split(':');
+      hours = parseInt(parts[0], 10);
+      minutes = parseInt(parts[1], 10);
+    }
 
     const gameDateObj = new Date();
-    gameDateObj.setHours(gameHours, gameMinutes, 0, 0);
+    gameDateObj.setHours(hours, minutes, 0, 0);
 
     const memberDate = new Date(gameDateObj.getTime() - 75 * 60 * 1000);
     const generalDate = new Date(gameDateObj.getTime() - 60 * 60 * 1000);
@@ -69,8 +89,7 @@ export default function HomeScreen() {
       let h = d.getHours();
       const m = d.getMinutes().toString().padStart(2, '0');
       const ampm = h >= 12 ? 'PM' : 'AM';
-      h = h % 12;
-      h = h ? h : 12;
+      h = h % 12 || 12;
       return `${h}:${m} ${ampm}`;
     };
 
@@ -80,15 +99,23 @@ export default function HomeScreen() {
     };
   };
 
+  const checkGamedayActive = (gameDateStr: string) => {
+    if (!gameDateStr) return;
+    const todayLocalStr = new Date().toLocaleDateString('sv-SE');
+    if (todayLocalStr === gameDateStr) {
+      setIsGameWindowOpen(true);
+    } else {
+      setIsGameWindowOpen(false);
+    }
+  };
+
   const fetchNextMatchup = async () => {
     try {
-      setLoading(true);
-      const todayString = new Date().toISOString().split('T')[0]; 
+      const todayString = new Date().toLocaleDateString('sv-SE'); 
 
       const { data, error } = await supabase
         .from('schedule')
         .select('*')
-        .eq('status', 'SCHEDULED')                 
         .gte('game_date', todayString)              
         .order('game_date', { ascending: true })   
         .limit(1);                                  
@@ -110,15 +137,17 @@ export default function HomeScreen() {
     }
   };
 
-  const checkGamedayActive = (gameDateStr: string) => {
-    if (!gameDateStr) return;
-    const todayLocalStr = new Date().toLocaleDateString('sv-SE');
-    if (todayLocalStr === gameDateStr) {
-      setIsGameWindowOpen(true);
-    } else {
-      setIsGameWindowOpen(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await fetchNextMatchup();
+      setRefreshKey((prev) => prev + 1);
+    } catch (err) {
+      console.warn("Pull to refresh error:", err);
+    } finally {
+      setRefreshing(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchNextMatchup();
@@ -219,8 +248,17 @@ export default function HomeScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.cardBg} />
       
-      <ScrollView contentContainerStyle={styles.contentPadding}>
-        
+      <ScrollView 
+        contentContainerStyle={styles.contentPadding}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={theme.accentGold}
+            colors={[theme.accentGold, theme.accentOrange]}
+          />
+        }
+      >
         {/* Banner */}
         <View style={[styles.welcomeBanner, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}>
           <Text style={[styles.bannerTitle, { color: theme.accentGold }]}>THE SJ BATTERY PACK</Text>
@@ -237,15 +275,18 @@ export default function HomeScreen() {
             <View style={styles.checkInHeader}>
               <Text style={[styles.checkInTitle, { color: theme.accentGold }]}>📍 GAMEDAY HQ</Text>
               <Text style={[styles.checkInSubtitle, { color: theme.subText }]}>
-                {nextGame.away_team} vs {nextGame.home_team}
+                {nextGame.home_away === 'HOME'
+                  ? `San Jose Barracuda vs ${nextGame.opponent}`
+                  : `${nextGame.opponent} vs San Jose Barracuda`}
               </Text>
               <Text style={[styles.gameDetailsText, { color: theme.text }]}>
-                📅 {nextGame.game_date} | ⏰ {formatTimeTo12Hour(nextGame.game_time)}
+                📅 {nextGame.date_display || nextGame.game_date} | ⏰ {formatGameTimeDisplay(nextGame.game_time)}
               </Text>
             </View>
             <TouchableOpacity 
-              style={[styles.checkInButton, { backgroundColor: isGameWindowOpen ? theme.accentOrange : theme.subCardBg }]}
+              style={[styles.checkInButton, { backgroundColor: theme.accentOrange }]}
               onPress={handleCheckInPress}
+              activeOpacity={0.85}
             >
               <Text style={styles.checkInButtonText}>
                 {isGameWindowOpen ? "🪸 Gameday Guide Active!" : "🏟️ View Know Before You Go"}
@@ -261,6 +302,7 @@ export default function HomeScreen() {
             <TouchableOpacity 
               style={[styles.checkInButton, { backgroundColor: theme.accentOrange }]}
               onPress={() => setInfoModalVisible(true)}
+              activeOpacity={0.85}
             >
               <Text style={styles.checkInButtonText}>🏟️ View Arena & Entry Guide</Text>
             </TouchableOpacity>
@@ -279,10 +321,11 @@ export default function HomeScreen() {
         </View>
 
         {/* 3. 🏒 NEXT 3 MATCHUPS */}
-        <NextMatchups />
+        <NextMatchups key={`next-matchups-${refreshKey}`} />
 
         {/* 4. 📊 LAST ENCOUNTER */}
         <LastEncounter 
+          key={`last-encounter-${refreshKey}`}
           opponentAbbr="BAK"
           opponentName="Bakersfield Condors"
           gameDate="JAN 21, 2026"
@@ -293,7 +336,7 @@ export default function HomeScreen() {
         />
 
         {/* 5. 🏆 AHL STANDINGS */}
-        <Standings />
+        <Standings key={`standings-${refreshKey}`} />
 
         {/* 6. 🪸 FAN HUB */}
         <Text style={[styles.blockTitleCentered, { color: theme.accentGold }]}>⚡️ FAN HUB</Text>
@@ -344,7 +387,11 @@ export default function HomeScreen() {
             
             <Text style={[styles.modalHeader, { color: theme.accentGold }]}>🏟️ REEF KNOW BEFORE YOU GO</Text>
             <Text style={[styles.modalSub, { color: theme.subText }]}>
-              {nextGame ? `Live updates for ${nextGame.away_team} vs ${nextGame.home_team}` : 'Tech CU Arena Gameday Information'}
+              {nextGame 
+                ? (nextGame.home_away === 'HOME'
+                    ? `San Jose Barracuda vs ${nextGame.opponent}`
+                    : `${nextGame.opponent} vs San Jose Barracuda`)
+                : 'Tech CU Arena Gameday Information'}
             </Text>
             
             <View style={[styles.tabBarRow, { borderColor: theme.borderColor }]}>

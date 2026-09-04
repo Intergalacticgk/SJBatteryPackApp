@@ -17,8 +17,8 @@ export default function ProspectsScreen() {
   const [prospects, setProspects] = useState<ProspectItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
-    'San Jose Sharks (NHL)': true,
-    'San Jose Barracuda (AHL)': true,
+    'San Jose Sharks (NHL)': false,
+    'San Jose Barracuda (AHL)': false,
     'Wichita Thunder (ECHL)': false,
     'Juniors & NCAA / Europe': false,
   });

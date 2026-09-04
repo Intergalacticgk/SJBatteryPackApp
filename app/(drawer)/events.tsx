@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -8,7 +8,9 @@ import {
   TouchableOpacity,
   FlatList,
   StatusBar,
+  ActivityIndicator,
 } from 'react-native';
+import { supabase } from '../../supabase';
 import { useAppTheme } from '../../context/ThemeContext';
 
 export interface SupporterEvent {
@@ -26,7 +28,7 @@ export interface SupporterEvent {
 
 const CATEGORIES = ['All', 'Road Trips', 'Watch Parties', 'Group Photos', 'Community & Tabling'] as const;
 
-const SUPPORTER_EVENTS: SupporterEvent[] = [
+const FALLBACK_EVENTS: SupporterEvent[] = [
   // 🌈 1. COMMUNITY: SILICON VALLEY PRIDE PARADE
   {
     id: 'pride-2026',
@@ -47,6 +49,55 @@ const SUPPORTER_EVENTS: SupporterEvent[] = [
       { q: 'What should I wear?', a: 'Wear your favorite Battery Pack teal, orange, pride supporter shirts, or hockey jerseys!' },
       { q: 'Is registration required?', a: 'Free to march with our group! Connect in the #watch-parties / community chat for staging updates.' },
     ],
+  },
+
+  // 🃏 TRADE NIGHTS
+  {
+    id: 'trade-dec-2026',
+    title: 'Cuda Card & Prospect Trade Night',
+    category: 'Community & Tabling',
+    badge: 'TRADE NIGHT',
+    date: 'Saturday, December 5, 2026',
+    time: '5:30 PM - 6:45 PM',
+    location: 'Section 108 Booster Table (Next to The Cove)',
+    description: 'Bring your binders and top-loaders! Trade NHL, AHL, and Sharks prospect cards with fellow collectors before puck drop.',
+    schedule: [
+      { time: '5:30 PM', detail: 'Card trading tables open at Section 108 concourse' },
+      { time: '6:35 PM', detail: 'Warm-ups wrap & trading concludes before anthem' },
+    ],
+    faqs: [
+      { q: 'What cards can I bring?', a: 'All NHL, AHL, PWHL, and junior hockey cards are welcome for open trading.' },
+    ],
+  },
+  {
+    id: 'trade-jan-2027',
+    title: 'Supporter Pin & Merch Swap',
+    category: 'Community & Tabling',
+    badge: 'TRADE NIGHT',
+    date: 'Saturday, January 23, 2027',
+    time: '2:00 PM - 2:45 PM',
+    location: 'Section 108 Booster Table',
+    description: 'Swap enamel pins, vintage Sharks patches, custom badges, and booster collectibles.',
+  },
+  {
+    id: 'trade-feb-2027',
+    title: 'Friendship Bracelet & PWHL Trade Night',
+    category: 'Community & Tabling',
+    badge: 'TRADE NIGHT',
+    date: 'Saturday, February 6, 2027',
+    time: '5:30 PM - 6:45 PM',
+    location: 'Section 108 Concourse',
+    description: 'Inspired by PWHL and fan traditions! Trade beaded player bracelets, women\'s hockey merch, and handmade crafts before the game.',
+  },
+  {
+    id: 'trade-apr-2027',
+    title: 'Fan Appreciation Mega Trade Night',
+    category: 'Community & Tabling',
+    badge: 'TRADE NIGHT',
+    date: 'Saturday, April 10, 2027',
+    time: '5:30 PM - 6:45 PM',
+    location: 'Section 108 Booster Table',
+    description: 'Our regular season trade finale. Trade cards, bracelets, poster autographs, and season keepsakes.',
   },
 
   // 🚌 2. ROAD TRIPS (AWAY INVASIONS)
@@ -273,10 +324,46 @@ export default function EventsScreen() {
   const { theme } = useAppTheme();
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [expandedEventId, setExpandedEventId] = useState<string | null>(null);
+  const [events, setEvents] = useState<SupporterEvent[]>(FALLBACK_EVENTS);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchEvents();
+  }, []);
+
+  const fetchEvents = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('supporter_events')
+        .select('*')
+        .order('event_date', { ascending: true });
+
+      if (!error && Array.isArray(data) && data.length > 0) {
+        const mapped: SupporterEvent[] = data.map((item: any) => ({
+          id: String(item.id),
+          title: item.title,
+          category: item.category || 'Community & Tabling',
+          badge: item.badge || 'EVENT',
+          date: item.date || item.event_date,
+          time: item.time || item.event_time,
+          location: item.location,
+          description: item.description || '',
+          schedule: item.schedule || undefined,
+          faqs: item.faqs || undefined,
+        }));
+        setEvents(mapped);
+      }
+    } catch (err) {
+      console.warn('Supabase supporter_events fetch error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredEvents = selectedCategory === 'All'
-    ? SUPPORTER_EVENTS
-    : SUPPORTER_EVENTS.filter((e) => e.category === selectedCategory);
+    ? events
+    : events.filter((e) => e.category === selectedCategory);
 
   const toggleExpand = (id: string) => {
     setExpandedEventId(expandedEventId === id ? null : id);
@@ -321,83 +408,90 @@ export default function EventsScreen() {
       </View>
 
       {/* Events Feed */}
-      <ScrollView contentContainerStyle={styles.contentPadding}>
-        <View style={[styles.bannerCard, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}>
-          <Text style={[styles.bannerTitle, { color: theme.accentGold }]}>📅 2026-27 SUPPORTER CALENDAR</Text>
-          <Text style={[styles.bannerSub, { color: theme.subText }]}>
-            Road trips, watch parties, on-ice group photos, and concourse meetups.
-          </Text>
+      {loading ? (
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color={theme.accentGold} />
         </View>
+      ) : (
+        <ScrollView contentContainerStyle={styles.contentPadding}>
+          <View style={[styles.bannerCard, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}>
+            <Text style={[styles.bannerTitle, { color: theme.accentGold }]}>📅 2026-27 SUPPORTER CALENDAR</Text>
+            <Text style={[styles.bannerSub, { color: theme.subText }]}>
+              Road trips, watch parties, on-ice group photos, and concourse meetups.
+            </Text>
+          </View>
 
-        {filteredEvents.map((item) => {
-          const isExpanded = expandedEventId === item.id;
+          {filteredEvents.map((item) => {
+            const isExpanded = expandedEventId === item.id;
 
-          return (
-            <View
-              key={item.id}
-              style={[styles.eventCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
-            >
-              {/* Category Badge & Date */}
-              <View style={styles.cardTopRow}>
-                <View style={[styles.badge, { backgroundColor: theme.accentOrange }]}>
-                  <Text style={styles.badgeText}>{item.badge}</Text>
-                </View>
-                <Text style={[styles.eventDate, { color: theme.accentGold }]}>{item.date}</Text>
-              </View>
-
-              <Text style={[styles.eventTitle, { color: theme.text }]}>{item.title}</Text>
-              <Text style={[styles.eventMeta, { color: theme.subText }]}>📍 {item.location}</Text>
-              <Text style={[styles.eventMeta, { color: theme.accentGold, marginBottom: 8 }]}>⏰ {item.time}</Text>
-              <Text style={[styles.eventDesc, { color: theme.text }]}>{item.description}</Text>
-
-              {/* Expandable Itinerary & FAQs */}
-              {isExpanded && (
-                <View style={[styles.expandedSection, { borderTopColor: theme.borderColor }]}>
-                  {item.schedule && item.schedule.length > 0 && (
-                    <View style={{ marginBottom: 12 }}>
-                      <Text style={[styles.sectionHeading, { color: theme.accentGold }]}>🕒 Schedule & Key Times:</Text>
-                      {item.schedule.map((s, idx) => (
-                        <View key={idx} style={styles.scheduleRow}>
-                          <Text style={[styles.scheduleTime, { color: theme.accentOrange }]}>{s.time}</Text>
-                          <Text style={[styles.scheduleDetail, { color: theme.text }]}>{s.detail}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  )}
-
-                  {item.faqs && item.faqs.length > 0 && (
-                    <View>
-                      <Text style={[styles.sectionHeading, { color: theme.accentGold }]}>❓ Event FAQs:</Text>
-                      {item.faqs.map((faq, idx) => (
-                        <View key={idx} style={styles.faqBlock}>
-                          <Text style={[styles.faqQ, { color: theme.text }]}>Q: {faq.q}</Text>
-                          <Text style={[styles.faqA, { color: theme.subText }]}>A: {faq.a}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  )}
-                </View>
-              )}
-
-              {/* Expand Button */}
-              <TouchableOpacity
-                style={[styles.expandBtn, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}
-                onPress={() => toggleExpand(item.id)}
+            return (
+              <View
+                key={item.id}
+                style={[styles.eventCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
               >
-                <Text style={[styles.expandBtnText, { color: theme.accentGold }]}>
-                  {isExpanded ? 'Hide Details ▲' : 'View Schedule & FAQs ▼'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          );
-        })}
-      </ScrollView>
+                {/* Category Badge & Date */}
+                <View style={styles.cardTopRow}>
+                  <View style={[styles.badge, { backgroundColor: theme.accentOrange }]}>
+                    <Text style={styles.badgeText}>{item.badge}</Text>
+                  </View>
+                  <Text style={[styles.eventDate, { color: theme.accentGold }]}>{item.date}</Text>
+                </View>
+
+                <Text style={[styles.eventTitle, { color: theme.text }]}>{item.title}</Text>
+                <Text style={[styles.eventMeta, { color: theme.subText }]}>📍 {item.location}</Text>
+                <Text style={[styles.eventMeta, { color: theme.accentGold, marginBottom: 8 }]}>⏰ {item.time}</Text>
+                <Text style={[styles.eventDesc, { color: theme.text }]}>{item.description}</Text>
+
+                {/* Expandable Itinerary & FAQs */}
+                {isExpanded && (
+                  <View style={[styles.expandedSection, { borderTopColor: theme.borderColor }]}>
+                    {item.schedule && item.schedule.length > 0 && (
+                      <View style={{ marginBottom: 12 }}>
+                        <Text style={[styles.sectionHeading, { color: theme.accentGold }]}>🕒 Schedule & Key Times:</Text>
+                        {item.schedule.map((s, idx) => (
+                          <View key={idx} style={styles.scheduleRow}>
+                            <Text style={[styles.scheduleTime, { color: theme.accentOrange }]}>{s.time}</Text>
+                            <Text style={[styles.scheduleDetail, { color: theme.text }]}>{s.detail}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+
+                    {item.faqs && item.faqs.length > 0 && (
+                      <View>
+                        <Text style={[styles.sectionHeading, { color: theme.accentGold }]}>❓ Event FAQs:</Text>
+                        {item.faqs.map((faq, idx) => (
+                          <View key={idx} style={styles.faqBlock}>
+                            <Text style={[styles.faqQ, { color: theme.text }]}>Q: {faq.q}</Text>
+                            <Text style={[styles.faqA, { color: theme.subText }]}>A: {faq.a}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                )}
+
+                {/* Expand Button */}
+                <TouchableOpacity
+                  style={[styles.expandBtn, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}
+                  onPress={() => toggleExpand(item.id)}
+                >
+                  <Text style={[styles.expandBtnText, { color: theme.accentGold }]}>
+                    {isExpanded ? 'Hide Details ▲' : 'View Schedule & FAQs ▼'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            );
+          })}
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   filterBar: { borderBottomWidth: 1 },
   filterPill: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
   filterPillText: { fontSize: 12, fontWeight: '700' },

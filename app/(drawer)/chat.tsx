@@ -25,7 +25,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const GIF_WIDTH = (SCREEN_WIDTH - 48) / 2;
 
 // Production Public GIPHY Key
-const GIPHY_API_KEY = '7AOGG0797w4yWkYjY6H36uJ1XmRkmx8k';
+const GIPHY_API_KEY = 'TVNEkjVWJEw0UDZxb7lzRG7mZpcD4FIA';
 
 interface ChatMessage {
   id: string;
@@ -46,7 +46,6 @@ const ROOMS = [
   { id: 'prospects', title: '⭐ Prospect Talk', desc: 'Sharks & Cuda prospect development' },
 ];
 
-// Curated Instant Fallback GIFs in case of offline / rate limits
 const FALLBACK_GIFS = [
   { id: 'fb-1', images: { fixed_height: { url: 'https://media.giphy.com/media/3o7TKSjRrfIPjeiVyM/giphy.gif' } } },
   { id: 'fb-2', images: { fixed_height: { url: 'https://media.giphy.com/media/l0HlTdK9f97qfOGRy/giphy.gif' } } },
@@ -73,7 +72,7 @@ export default function ChatScreen() {
 
   // Media & Giphy State
   const [gifModalVisible, setGifModalVisible] = useState(false);
-  const [gifSearchText, setGifSearchText] = useState('hockey');
+  const [gifSearchText, setGifSearchText] = useState('san jose sharks');
   const [gifResults, setGifResults] = useState<any[]>([]);
   const [gifLoading, setGifLoading] = useState(false);
 
@@ -156,7 +155,6 @@ export default function ChatScreen() {
     setLoading(false);
   };
 
-  // 📝 Send Text Message
   const handleSendMessage = async () => {
     if (!inputText.trim() || sending) return;
 
@@ -205,7 +203,6 @@ export default function ChatScreen() {
     }
   };
 
-  // 📸 Upload & Send Photo
   const handlePickAndSendImage = async () => {
     if (!session?.user) {
       Alert.alert('Sign In Required', 'Please sign in to upload photos to Section 108 chat.');
@@ -298,32 +295,28 @@ export default function ChatScreen() {
     }
   };
 
-  // 🎬 Guaranteed GIPHY Search
-  const searchGiphy = async (query = 'hockey') => {
+  const searchGiphy = async (query = 'san jose sharks') => {
     setGifLoading(true);
     try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 3000);
-      const endpoint = `https://api.giphy.com/v1/gifs/search?api_key=${GIPHY_API_KEY}&q=${encodeURIComponent(
-        query.trim() || 'hockey'
-      )}&limit=24&rating=pg-13`;
+      const trimmed = query.trim();
+      const endpoint = trimmed.length > 0
+        ? `https://api.giphy.com/v1/gifs/search?api_key=${GIPHY_API_KEY}&q=${encodeURIComponent(trimmed)}&limit=24&rating=pg-13`
+        : `https://api.giphy.com/v1/gifs/trending?api_key=${GIPHY_API_KEY}&limit=24&rating=pg-13`;
 
-      const res = await fetch(endpoint, { signal: controller.signal });
-      clearTimeout(timer);
+      const res = await fetch(endpoint);
       const json = await res.json();
 
       if (json?.data && Array.isArray(json.data) && json.data.length > 0) {
         setGifResults(json.data);
-        setGifLoading(false);
-        return;
+      } else {
+        setGifResults(FALLBACK_GIFS);
       }
     } catch (e) {
-      console.warn('Giphy live fetch fallback', e);
+      console.warn('Giphy live fetch error:', e);
+      setGifResults(FALLBACK_GIFS);
+    } finally {
+      setGifLoading(false);
     }
-
-    // Load Curated GIFs if query produces no results or network drops
-    setGifResults(FALLBACK_GIFS);
-    setGifLoading(false);
   };
 
   const handleSelectGif = async (gifUrl: string) => {
@@ -400,65 +393,66 @@ export default function ChatScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.cardBg} />
 
-      {/* Room Selector Tabs */}
-      <View style={[styles.roomsContainer, { backgroundColor: theme.cardBg, borderBottomColor: theme.borderColor }]}>
-        <FlatList
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          data={ROOMS}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={{ paddingHorizontal: 12, gap: 8, paddingVertical: 10 }}
-          renderItem={({ item }) => {
-            const isActive = item.id === activeRoom;
-            return (
-              <TouchableOpacity
-                style={[
-                  styles.roomTab,
-                  { backgroundColor: theme.subCardBg, borderColor: theme.borderColor },
-                  isActive && { backgroundColor: theme.accentGold, borderColor: theme.accentGold },
-                ]}
-                onPress={() => setActiveRoom(item.id)}
-              >
-                <Text
-                  style={[
-                    styles.roomTabText,
-                    { color: theme.text },
-                    isActive && { color: '#001417', fontWeight: '900' },
-                  ]}
-                >
-                  {item.title}
-                </Text>
-              </TouchableOpacity>
-            );
-          }}
-        />
-      </View>
-
-      {/* Search Bar */}
-      <View style={[styles.searchRow, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}>
-        <Text style={{ fontSize: 13, marginRight: 6 }}>🔍</Text>
-        <TextInput
-          style={[styles.searchInput, { color: theme.text }]}
-          placeholder="Search messages in this channel..."
-          placeholderTextColor="#80B3B8"
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-        />
-        {searchQuery.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchQuery('')}>
-            <Text style={{ color: theme.subText, fontSize: 13, paddingHorizontal: 4 }}>✕</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* Messages Feed */}
+      {/* 🚀 Single unified KeyboardAvoidingView that wraps both feed and toolbar */}
       <KeyboardAvoidingView
-        style={{ flex: 1 }}
+        style={styles.flexContainer}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 95 : 0}
       >
+        {/* Room Selector Tabs */}
+        <View style={[styles.roomsContainer, { backgroundColor: theme.cardBg, borderBottomColor: theme.borderColor }]}>
+          <FlatList
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            data={ROOMS}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={{ paddingHorizontal: 12, gap: 8, paddingVertical: 10 }}
+            renderItem={({ item }) => {
+              const isActive = item.id === activeRoom;
+              return (
+                <TouchableOpacity
+                  style={[
+                    styles.roomTab,
+                    { backgroundColor: theme.subCardBg, borderColor: theme.borderColor },
+                    isActive && { backgroundColor: theme.accentGold, borderColor: theme.accentGold },
+                  ]}
+                  onPress={() => setActiveRoom(item.id)}
+                >
+                  <Text
+                    style={[
+                      styles.roomTabText,
+                      { color: theme.text },
+                      isActive && { color: '#001417', fontWeight: '900' },
+                    ]}
+                  >
+                    {item.title}
+                  </Text>
+                </TouchableOpacity>
+              );
+            }}
+          />
+        </View>
+
+        {/* Search Bar */}
+        <View style={[styles.searchRow, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}>
+          <Text style={{ fontSize: 13, marginRight: 6 }}>🔍</Text>
+          <TextInput
+            style={[styles.searchInput, { color: theme.text }]}
+            placeholder="Search messages in this channel..."
+            placeholderTextColor="#80B3B8"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')}>
+              <Text style={{ color: theme.subText, fontSize: 13, paddingHorizontal: 4 }}>✕</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Messages Feed */}
         {loading ? (
-          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <View style={styles.loaderCenter}>
             <ActivityIndicator size="large" color={theme.accentGold} />
           </View>
         ) : (
@@ -468,6 +462,7 @@ export default function ChatScreen() {
             keyExtractor={(item) => item.id || String(Math.random())}
             contentContainerStyle={styles.messagesPadding}
             onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+            keyboardShouldPersistTaps="handled"
             renderItem={({ item }) => {
               const isMine = item.user_id === session?.user?.id;
               const formattedTime = new Date(item.created_at || Date.now()).toLocaleTimeString([], {
@@ -506,25 +501,22 @@ export default function ChatScreen() {
           />
         )}
 
-        {/* Message Input Toolbar */}
+        {/* Message Input Toolbar (Stays directly above the keyboard) */}
         <View style={[styles.inputBar, { backgroundColor: theme.cardBg, borderTopColor: theme.borderColor }]}>
-          {/* Photo Attachment Button */}
           <TouchableOpacity style={[styles.iconButton, { backgroundColor: theme.subCardBg }]} onPress={handlePickAndSendImage}>
             <Text style={{ fontSize: 18 }}>📎</Text>
           </TouchableOpacity>
 
-          {/* Giphy GIF Picker Button */}
           <TouchableOpacity
             style={[styles.gifButton, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}
             onPress={() => {
               setGifModalVisible(true);
-              searchGiphy('hockey');
+              searchGiphy(gifSearchText);
             }}
           >
             <Text style={[styles.gifButtonText, { color: theme.accentGold }]}>GIF</Text>
           </TouchableOpacity>
 
-          {/* Text Input */}
           <TextInput
             style={[styles.messageInput, { backgroundColor: theme.subCardBg, color: theme.text, borderColor: theme.borderColor }]}
             placeholder={`Message #${ROOMS.find((r) => r.id === activeRoom)?.title}...`}
@@ -534,7 +526,6 @@ export default function ChatScreen() {
             multiline
           />
 
-          {/* Send Action */}
           <TouchableOpacity
             style={[styles.sendButton, { backgroundColor: theme.accentGold }]}
             onPress={handleSendMessage}
@@ -545,7 +536,7 @@ export default function ChatScreen() {
         </View>
       </KeyboardAvoidingView>
 
-      {/* 🎬 GIPHY GIF Selection Modal */}
+      {/* GIPHY Selection Modal */}
       <Modal visible={gifModalVisible} animationType="slide" transparent onRequestClose={() => setGifModalVisible(false)}>
         <View style={styles.gifModalOverlay}>
           <View style={[styles.gifModalContainer, { backgroundColor: theme.cardBg, borderColor: theme.accentGold }]}>
@@ -556,7 +547,6 @@ export default function ChatScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Quick Search Shortcut Tags */}
             <View style={styles.quickTagsRow}>
               {['San Jose Sharks', 'Goal', 'Celley', 'Hockey Fight', 'Reef'].map((tag) => (
                 <TouchableOpacity
@@ -572,7 +562,6 @@ export default function ChatScreen() {
               ))}
             </View>
 
-            {/* Search Box */}
             <View style={[styles.gifSearchRow, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}>
               <TextInput
                 style={[styles.gifSearchInput, { color: theme.text }]}
@@ -586,7 +575,6 @@ export default function ChatScreen() {
               />
             </View>
 
-            {/* GIF Results Grid */}
             {gifLoading ? (
               <ActivityIndicator size="large" color={theme.accentGold} style={{ flex: 1, marginTop: 20 }} />
             ) : (
@@ -595,6 +583,7 @@ export default function ChatScreen() {
                 keyExtractor={(item, index) => item.id || String(index)}
                 numColumns={2}
                 contentContainerStyle={{ paddingBottom: 20 }}
+                keyboardShouldPersistTaps="handled"
                 renderItem={({ item }) => {
                   const gifUrl = item.images?.fixed_height?.url || item.images?.downsized?.url;
                   if (!gifUrl) return null;
@@ -620,12 +609,14 @@ export default function ChatScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  flexContainer: { flex: 1 },
+  loaderCenter: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   roomsContainer: { borderBottomWidth: 1 },
   roomTab: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
   roomTabText: { fontSize: 12, fontWeight: '700' },
   searchRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 12, marginTop: 8, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1 },
   searchInput: { flex: 1, fontSize: 12, fontWeight: '600' },
-  messagesPadding: { padding: 14, paddingBottom: 10 },
+  messagesPadding: { padding: 14, paddingBottom: 16 },
   messageBubbleWrapper: { marginBottom: 12, maxWidth: '82%' },
   myBubbleWrapper: { alignSelf: 'flex-end' },
   otherBubbleWrapper: { alignSelf: 'flex-start' },
@@ -634,11 +625,29 @@ const styles = StyleSheet.create({
   bubbleMedia: { width: 220, height: 160, borderRadius: 8, marginBottom: 4 },
   messageText: { fontSize: 14, fontWeight: '600', lineHeight: 19 },
   messageTime: { fontSize: 9, marginTop: 4, textAlign: 'right', fontWeight: '500' },
-  inputBar: { flexDirection: 'row', padding: 8, borderTopWidth: 1, alignItems: 'center', gap: 6 },
+  inputBar: {
+    flexDirection: 'row',
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    alignItems: 'center',
+    gap: 6,
+  },
   iconButton: { width: 38, height: 38, borderRadius: 19, justifyContent: 'center', alignItems: 'center' },
   gifButton: { width: 44, height: 38, borderRadius: 10, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
   gifButtonText: { fontSize: 12, fontWeight: '900' },
-  messageInput: { flex: 1, minHeight: 38, maxHeight: 90, borderRadius: 20, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 6, fontSize: 13, fontWeight: '600' },
+  messageInput: {
+    flex: 1,
+    minHeight: 38,
+    maxHeight: 100,
+    borderRadius: 20,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingTop: 8,
+    paddingBottom: 8,
+    fontSize: 13,
+    fontWeight: '600',
+  },
   sendButton: { width: 38, height: 38, borderRadius: 19, justifyContent: 'center', alignItems: 'center' },
   sendButtonText: { fontSize: 16, color: '#001E22', fontWeight: '900' },
   loggedOutContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },

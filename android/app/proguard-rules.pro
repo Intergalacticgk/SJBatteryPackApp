@@ -12,3 +12,16 @@
 -keep class com.facebook.react.turbomodule.** { *; }
 
 # Add any project specific keep options here:
+
+# React Native
+-keep class com.facebook.react.** { *; }
+-keepclassmembers class * {
+    @com.facebook.react.uimanager.annotations.ReactProp <fields>;
+    @com.facebook.react.uimanager.annotations.ReactPropGroup <fields>;
+}
+
+# Keep native module names
+-keep class * implements com.facebook.react.bridge.NativeModule { *; }
+-keepclassmembers class * {
+    @com.facebook.react.bridge.ReactMethod *;
+}

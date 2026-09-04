@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, View, Text, Dimensions, TouchableOpacity, StatusBar, Alert, Modal, TextInput, ScrollView } from 'react-native';
 import { GameEngine } from 'react-native-game-engine';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -39,29 +39,38 @@ export default function PuckDropScreen() {
   const [gameKey, setGameKey] = useState(0);
   const [gameActive, setGameActive] = useState(false);
   
-  const [opponent, setOpponent] = useState(null);
+  const [opponent, setOpponent] = useState<any>(null);
   const [timeLeft, setTimeLeft] = useState(60);
-  const [isOvertime, setIsOvertime] = useState(false); // 🚨 Tracks whether the game is currently in OT
+  const [isOvertime, setIsOvertime] = useState(false);
+  const [overtimeModalVisible, setOvertimeModalVisible] = useState(false);
   const [gameOverModalVisible, setGameOverModalVisible] = useState(false);
   const [initials, setInitials] = useState('');
   const [savingScore, setSavingScore] = useState(false);
-  const [leaderboard, setLeaderboard] = useState([]);
+  const [leaderboard, setLeaderboard] = useState<any[]>([]);
+
+  // Ref to hold current game physics entities for manual resets
+  const entitiesRef = useRef<any>(null);
 
   // ⏱️ Main Countdown Loop with Sudden Death Overtime Logic
   useEffect(() => {
-    let timer;
+    let timer: any;
     if (gameActive && timeLeft > 0) {
       timer = setInterval(() => {
         setTimeLeft((prev) => prev - 1);
       }, 1000);
     } else if (timeLeft === 0 && gameActive) {
-      // If regulation ends in a tie and we aren't already in OT, trigger Overtime!
+      // If regulation ends in a tie and we aren't already in OT, pause game & trigger Overtime Modal
       if (playerScore === aiScore && !isOvertime) {
+        setGameActive(false); // ⏸️ Pause the game & physics completely
+        if (entitiesRef.current) {
+          const { puck, player, ai } = entitiesRef.current;
+          stopAllVelocity(puck?.body, player?.body, ai?.body);
+        }
         setIsOvertime(true);
-        setTimeLeft(30); // Grant 30 seconds of extra time
-        Alert.alert("🚨 OVERTIME! 🚨", "Regulation ended in a tie! 30 seconds added to the clock. Next goal wins!");
+        setTimeLeft(30); // 30-second sudden death overtime
+        setOvertimeModalVisible(true);
       } else {
-        // Otherwise, end the game normally
+        // End the game normally
         setGameActive(false);
         fetchLeaderboard();
         setGameOverModalVisible(true);
@@ -74,7 +83,7 @@ export default function PuckDropScreen() {
   let resetTimer = 0;
   let serveTargetY = RINK_HEIGHT / 2; 
 
-  const GoalDetectionSystem = (entities, { time }) => {
+  const GoalDetectionSystem = (entities: any, { time }: any) => {
     if (!gameActive || !entities.puck) return entities;
 
     const puckBody = entities.puck.body;
@@ -140,18 +149,51 @@ export default function PuckDropScreen() {
         goalScored = false;
         resetTimer = 0;
         const randomX = (Math.random() - 0.5) * 1.5;
-        Matter.Body.setVelocity(hockeyPuck, { x: randomX, y: serveTargetY < RINK_HEIGHT / 2 ? 0.7 : -0.7 });
+        Matter.Body.setVelocity(puckBody, { x: randomX, y: serveTargetY < RINK_HEIGHT / 2 ? 0.7 : -0.7 });
       }
     }
 
     return entities;
   };
 
-  const stopAllVelocity = (puck, player, ai) => {
-    Matter.Body.setVelocity(puck, { x: 0, y: 0 });
-    Matter.Body.setAngularVelocity(puck, 0);
+  const stopAllVelocity = (puck: any, player: any, ai: any) => {
+    if (puck) {
+      Matter.Body.setVelocity(puck, { x: 0, y: 0 });
+      Matter.Body.setAngularVelocity(puck, 0);
+    }
     if (player) Matter.Body.setVelocity(player, { x: 0, y: 0 });
     if (ai) Matter.Body.setVelocity(ai, { x: 0, y: 0 });
+  };
+
+  const handleStartOvertime = () => {
+    setOvertimeModalVisible(false);
+
+    // 🏒 Reset all bodies to Center Faceoff positions
+    if (entitiesRef.current) {
+      const { puck, player, ai } = entitiesRef.current;
+      if (puck) {
+        Matter.Body.setPosition(puck.body, { x: RINK_WIDTH / 2, y: RINK_HEIGHT / 2 });
+        Matter.Body.setVelocity(puck.body, { x: 0, y: 0 });
+        Matter.Body.setAngularVelocity(puck.body, 0);
+      }
+      if (player) {
+        Matter.Body.setPosition(player.body, { x: RINK_WIDTH / 2, y: RINK_HEIGHT - 100 });
+        Matter.Body.setVelocity(player.body, { x: 0, y: 0 });
+      }
+      if (ai) {
+        Matter.Body.setPosition(ai.body, { x: RINK_WIDTH / 2, y: 100 });
+        Matter.Body.setVelocity(ai.body, { x: 0, y: 0 });
+      }
+    }
+
+    // Resume the game with neutral faceoff velocity
+    setTimeout(() => {
+      setGameActive(true);
+      if (entitiesRef.current?.puck) {
+        const randomX = (Math.random() - 0.5) * 2.0;
+        Matter.Body.setVelocity(entitiesRef.current.puck.body, { x: randomX, y: 2.2 });
+      }
+    }, 300);
   };
 
   const setupWorld = () => {
@@ -212,7 +254,7 @@ export default function PuckDropScreen() {
       });
     });
 
-    return {
+    const entities = {
       physics: { engine, world },
       player: { body: playerMallet, color: '#266B73', renderer: <CircleRenderer /> }, 
       ai: { body: aiMallet, color: opponent ? opponent.color : '#C0392B', renderer: <CircleRenderer /> }, 
@@ -221,12 +263,27 @@ export default function PuckDropScreen() {
       right: { body: rightWall, color: 'transparent', renderer: <WallRenderer /> },
       aiMaxSpeed: aiSpeed
     };
+
+    entitiesRef.current = entities;
+    return entities;
   };
 
   const fetchLeaderboard = async () => {
-    setLeaderboard([
-      { id: '1', initials: 'TEST', score: 5, team_played: 'BAK' }
-    ]);
+    try {
+      const { data, error } = await supabase
+        .from('arcade_high_scores')
+        .select('*')
+        .order('score', { ascending: false })
+        .limit(5);
+
+      if (!error && data) {
+        setLeaderboard(data);
+      }
+    } catch {
+      setLeaderboard([
+        { id: '1', initials: 'TEST', score: playerScore, team_played: opponent?.abbrev || 'OPP' }
+      ]);
+    }
   };
 
   const handleSaveScore = async () => {
@@ -270,7 +327,8 @@ export default function PuckDropScreen() {
     setPlayerScore(0);
     setAiScore(0);
     setTimeLeft(60);
-    setIsOvertime(false); // Reset overtime configuration status
+    setIsOvertime(false);
+    setOvertimeModalVisible(false);
     setGameActive(false);
     setOpponent(null);
     setInitials('');
@@ -346,6 +404,29 @@ export default function PuckDropScreen() {
         />
       </View>
 
+      {/* 🚨 OVERTIME ACKNOWLEDGMENT MODAL (Freezes game until tapped) */}
+      <Modal visible={overtimeModalVisible} transparent={true} animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContainer, { borderColor: '#C0392B', borderWidth: 3 }]}>
+            <Text style={[styles.modalHeader, { color: '#C0392B', fontSize: 26 }]}>🚨 SUDDEN DEATH OT! 🚨</Text>
+            <Text style={[styles.modalSub, { fontSize: 16, marginTop: 4 }]}>
+              Regulation ended in a {playerScore} - {aiScore} tie!
+            </Text>
+
+            <View style={styles.otAlertBox}>
+              <Text style={styles.otRuleText}>⏱️ <Text style={{ fontWeight: '900' }}>30 Seconds</Text> on the clock.</Text>
+              <Text style={styles.otRuleText}>⚡ <Text style={{ fontWeight: '900', color: '#C0392B' }}>Next Goal Wins</Text> the game!</Text>
+              <Text style={styles.otRuleText}>🏒 Puck resets to center ice for a fair faceoff.</Text>
+            </View>
+
+            <TouchableOpacity style={[styles.submitButton, { backgroundColor: '#C0392B', marginTop: 10 }]} onPress={handleStartOvertime}>
+              <Text style={[styles.submitButtonText, { fontSize: 16 }]}>Start Overtime Faceoff ➔</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* 🏆 GAME OVER & LEADERBOARD MODAL */}
       <Modal visible={gameOverModalVisible} transparent={true} animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
@@ -413,10 +494,12 @@ const styles = StyleSheet.create({
   largeFaceoffCircle: { position: 'absolute', width: FACEOFF_CIRCLE_SIZE, height: FACEOFF_CIRCLE_SIZE, borderRadius: FACEOFF_CIRCLE_SIZE / 2, borderWidth: 1.5, borderColor: '#C0392B', opacity: 0.5, justifyContent: 'center', alignItems: 'center' },
   faceoffDotInternal: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#C0392B' },
   gameCanvas: { flex: 1, backgroundColor: 'transparent' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'center', alignItems: 'center' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center' },
   modalContainer: { backgroundColor: '#FFFFFF', width: '88%', padding: 20, borderRadius: 16, borderWidth: 2, borderColor: '#266B73' },
   modalHeader: { fontSize: 22, fontWeight: '900', color: '#C0392B', textAlign: 'center', marginBottom: 4 },
-  modalSub: { fontSize: 14, fontWeight: '700', color: '#000000', textAlign: 'center', marginBottom: 16 },
+  modalSub: { fontSize: 14, fontWeight: '700', color: '#000000', textAlign: 'center', marginBottom: 12 },
+  otAlertBox: { backgroundColor: '#FADBD8', padding: 12, borderRadius: 10, borderWidth: 1, borderColor: '#E6B0AA', marginVertical: 8, gap: 6 },
+  otRuleText: { fontSize: 13, color: '#000000', fontWeight: '600' },
   leaderboardBox: { backgroundColor: '#F4F6F9', padding: 14, borderRadius: 10, marginBottom: 16, borderWidth: 1, borderColor: '#9BA0A3' },
   leaderboardTitle: { fontSize: 15, fontWeight: '800', color: '#266B73', textAlign: 'center', marginBottom: 8 },
   leaderboardRow: { fontSize: 14, color: '#000000', fontWeight: '600', marginBottom: 4, textAlign: 'center' },

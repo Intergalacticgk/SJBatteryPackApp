@@ -10,9 +10,10 @@ import {
   Modal,
   TextInput,
   Alert,
-  Linking
+  ActivityIndicator
 } from 'react-native';
 import { useAppTheme } from '../../context/ThemeContext';
+import { supabase } from '../../supabase';
 
 interface ChantItem {
   id: string;
@@ -75,6 +76,7 @@ export default function FanzoneScreen() {
   const [chantTitle, setChantTitle] = useState('');
   const [chantLyrics, setChantLyrics] = useState('');
   const [chantTempo, setChantTempo] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   const categories = ['ALL', 'GENERAL', 'CALL & RESPONSE', 'ARENA TRADITION'];
 
@@ -88,22 +90,39 @@ export default function FanzoneScreen() {
       return;
     }
 
-    const emailSubject = encodeURIComponent(`New Chant Idea: ${chantTitle}`);
-    const emailBody = encodeURIComponent(
-      `Hey Section 108 Leadership,\n\nI have a new chant idea for the SJ Battery Pack!\n\nChant Title: ${chantTitle}\nTempo / Beat: ${chantTempo || 'Standard'}\n\nLyrics / Call & Response:\n${chantLyrics}\n\nSubmitted from the SJ Battery Pack App 🪸`
-    );
+    setSubmitting(true);
 
-    const mailtoUrl = `mailto:info@sjbatterypack.com?subject=${emailSubject}&body=${emailBody}`;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
 
-    const supported = await Linking.canOpenURL(mailtoUrl);
-    if (supported) {
-      await Linking.openURL(mailtoUrl);
+      const payload = {
+        user_id: session?.user?.id || null,
+        submitter_name: session?.user?.email ? session.user.email.split('@')[0] : 'Supporter 108',
+        contact_email: session?.user?.email || null,
+        chant_title: chantTitle.trim(),
+        chant_lyrics: chantLyrics.trim(),
+        melody_inspiration: chantTempo.trim() || null,
+      };
+
+      const { error } = await supabase
+        .from('chant_submissions')
+        .insert([payload]);
+
+      if (error) throw error;
+
+      Alert.alert(
+        'Chant Submitted! 📢',
+        'Thanks for fueling Section 108! Your idea has been sent directly to the Battery Pack team for review.'
+      );
+
       setModalVisible(false);
       setChantTitle('');
       setChantLyrics('');
       setChantTempo('');
-    } else {
-      Alert.alert('Email Client Error', 'Could not launch your email app. Please send your chant directly to info@sjbatterypack.com');
+    } catch (err: any) {
+      Alert.alert('Submission Error', err.message || 'Could not send submission. Please try again.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -227,6 +246,7 @@ export default function FanzoneScreen() {
               <TouchableOpacity
                 style={[styles.cancelBtn, { borderColor: theme.borderColor }]}
                 onPress={() => setModalVisible(false)}
+                disabled={submitting}
               >
                 <Text style={[styles.cancelBtnText, { color: theme.subText }]}>Cancel</Text>
               </TouchableOpacity>
@@ -234,8 +254,13 @@ export default function FanzoneScreen() {
               <TouchableOpacity
                 style={[styles.sendIdeaBtn, { backgroundColor: theme.accentOrange }]}
                 onPress={handleSubmitChant}
+                disabled={submitting}
               >
-                <Text style={styles.sendIdeaBtnText}>Email to Leadership 🪸</Text>
+                {submitting ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.sendIdeaBtnText}>Submit Chant 🪸</Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -295,6 +320,6 @@ const styles = StyleSheet.create({
   modalButtonsRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
   cancelBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, alignItems: 'center' },
   cancelBtnText: { fontSize: 13, fontWeight: '700' },
-  sendIdeaBtn: { flex: 2, paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
+  sendIdeaBtn: { flex: 2, paddingVertical: 12, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   sendIdeaBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '900' },
 });

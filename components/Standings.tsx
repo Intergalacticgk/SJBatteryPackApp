@@ -138,7 +138,8 @@ export default function Standings() {
           )}
         </View>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        {/* Horizontal ScrollView with flexGrow to expand on wide tablet displays while remaining scrollable on small devices */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scrollContainer}>
           <View style={styles.table}>
             <View style={[styles.tableHeader, { borderBottomColor: theme.borderColor }]}>
               <Text style={[styles.thCell, styles.rankCol, { color: theme.subText }]}>#</Text>
@@ -206,18 +207,25 @@ const styles = StyleSheet.create({
   divisionRow: { flexDirection: 'row', gap: 6, marginBottom: 8 },
   divPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1 },
   divPillText: { fontSize: 10, fontWeight: '800' },
-  table: { minWidth: 460 },
-  tableHeader: { flexDirection: 'row', borderBottomWidth: 1, paddingBottom: 6, marginBottom: 4 },
+
+  // Allows table to fill 100% of the screen width on iPad while retaining horizontal scrolling on smaller screens
+  scrollContainer: { flexGrow: 1 },
+  table: { width: '100%', minWidth: 460 },
+
+  tableHeader: { flexDirection: 'row', borderBottomWidth: 1, paddingBottom: 6, marginBottom: 4, alignItems: 'center' },
   thCell: { fontSize: 10, fontWeight: '800', textAlign: 'center' },
   tableRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderBottomWidth: 1 },
   teamCellWrapper: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   teamMiniBadge: { width: 34, height: 20, borderRadius: 4, justifyContent: 'center', alignItems: 'center' },
   teamMiniBadgeText: { fontSize: 9, fontWeight: '900' },
   tdCell: { fontSize: 11, fontWeight: '600' },
-  rankCol: { width: 24, textAlign: 'center' },
-  teamCol: { width: 130 },
-  statCol: { width: 44, textAlign: 'center' },
-  recordCol: { width: 90, textAlign: 'center' },
+
+  // Responsive proportional columns
+  rankCol: { width: 30, textAlign: 'center' },
+  teamCol: { flex: 2.2, minWidth: 130, paddingLeft: 4 },
+  statCol: { flex: 0.9, minWidth: 44, textAlign: 'center' },
+  recordCol: { flex: 1.6, minWidth: 90, textAlign: 'center' },
+
   playoffLine: { borderTopWidth: 1, marginVertical: 4, paddingTop: 3, alignItems: 'center' },
   playoffLineText: { fontSize: 8, fontWeight: '900', letterSpacing: 0.5 },
 });

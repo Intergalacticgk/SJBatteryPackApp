@@ -3,8 +3,8 @@
     "name": "SJ Battery Pack",
     "slug": "SJBatteryPackApp",
     "scheme": "sjbatterypack",
-    "version": "2.0.0",
-    "orientation": "portrait",
+    "version": "2.1.0",
+    "orientation": "default",
     "icon": "./assets/images/icon.png",
     "userInterfaceStyle": "dark",
     "splash": {
@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.sjbatterypack.myapp",
-      "buildNumber": "2.0.0",
+      "buildNumber": "2.1.1",
       "usesAppleSignIn": true,
       "icon": "./assets/images/icon.png",
       "splash": {
@@ -36,7 +36,8 @@
     },
     "android": {
       "package": "com.sjbatterypack.myapp",
-      "versionCode": 39,
+      "versionCode": 46,
+      "softwareKeyboardLayoutMode": "resize",
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-foreground.png",

@@ -30,6 +30,33 @@ const SECTIONS = [
 const ROWS = Array.from({ length: 13 }, (_, i) => String(i + 1));
 const SEATS = Array.from({ length: 22 }, (_, i) => String(i + 1));
 
+// Lightweight helper to decode JWT payload without external dependencies
+function extractNonceFromJwt(token: string): string | undefined {
+  try {
+    const base64Url = token.split('.')[1];
+    if (!base64Url) return undefined;
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
+    let str = '';
+    for (let i = 0; i < base64.length; i += 4) {
+      const b0 = chars.indexOf(base64.charAt(i));
+      const b1 = chars.indexOf(base64.charAt(i + 1));
+      const b2 = chars.indexOf(base64.charAt(i + 2));
+      const b3 = chars.indexOf(base64.charAt(i + 3));
+      const c0 = (b0 << 2) | (b1 >> 4);
+      const c1 = ((b1 & 15) << 4) | (b2 >> 2);
+      const c2 = ((b2 & 3) << 6) | b3;
+      str += String.fromCharCode(c0);
+      if (b2 !== 64 && b2 !== -1) str += String.fromCharCode(c1);
+      if (b3 !== 64 && b3 !== -1) str += String.fromCharCode(c2);
+    }
+    const parsed = JSON.parse(str);
+    return parsed?.nonce;
+  } catch {
+    return undefined;
+  }
+}
+
 export default function AccountScreen() {
   const { theme } = useAppTheme();
   const [session, setSession] = useState<any>(null);
@@ -68,6 +95,11 @@ export default function AccountScreen() {
   const [authPhone, setAuthPhone] = useState('');
   const [otp, setOtp] = useState('');
   const [step, setStep] = useState<'PHONE' | 'OTP'>('PHONE');
+
+  // Delete Account Modal States
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [deleteInputText, setDeleteInputText] = useState('');
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     // 🌐 Configure Native Google Sign-In with both Android/Web and iOS Client IDs
@@ -116,7 +148,7 @@ export default function AccountScreen() {
       setSectionNum(data.section_number || '');
       setRowNum(data.row_number || '');
       setSeatNum(data.seat_number || '');
-      setHighScore(data.high_score || 0);
+      setHighScore(data.puck_drop_high_score || data.high_score || 0);
     } else {
       const defaultName = user.email ? user.email.split('@')[0] : 'Supporter108';
       setUsername(defaultName);
@@ -221,13 +253,23 @@ export default function AccountScreen() {
       setLoading(true);
       await GoogleSignin.hasPlayServices();
       const response = await GoogleSignin.signIn();
-      const idToken = response.data?.idToken;
+      const idToken = response.data?.idToken || (response as any).idToken;
+
       if (!idToken) throw new Error('No ID token received from Google');
 
-      const { data, error } = await supabase.auth.signInWithIdToken({
+      // Extract internal nonce if Google embedded one in the JWT on iOS/iPadOS
+      const extractedNonce = extractNonceFromJwt(idToken);
+
+      const authPayload: { provider: 'google'; token: string; nonce?: string } = {
         provider: 'google',
         token: idToken,
-      });
+      };
+
+      if (extractedNonce) {
+        authPayload.nonce = extractedNonce;
+      }
+
+      const { data, error } = await supabase.auth.signInWithIdToken(authPayload);
 
       if (error) throw error;
       setSession(data.session);
@@ -308,6 +350,46 @@ export default function AccountScreen() {
     setSession(null);
   };
 
+  const handlePermanentAccountDelete = async () => {
+    if (deleteInputText.trim().toUpperCase() !== 'DELETE') {
+      Alert.alert('Verification Failed', 'Please type DELETE in all caps to confirm.');
+      return;
+    }
+
+    if (!session?.user) return;
+
+    try {
+      setDeleting(true);
+      const userId = session.user.id;
+
+      // 1. Wipe user records across tables
+      await supabase.from('chat_messages').delete().eq('user_id', userId);
+      await supabase.from('fan_gallery').delete().eq('user_id', userId);
+      await supabase.from('gallery_likes').delete().eq('user_id', userId);
+      await supabase.from('poll_votes').delete().eq('user_id', userId);
+      await supabase.from('profiles').delete().eq('id', userId);
+
+      // 2. Clear Google & Supabase sessions
+      await supabase.auth.signOut();
+      try {
+        await GoogleSignin.signOut();
+      } catch {}
+
+      setDeleteModalVisible(false);
+      setDeleteInputText('');
+      setSession(null);
+
+      Alert.alert(
+        'Account Deleted',
+        'Your profile, scores, and associated supporter data have been permanently removed.'
+      );
+    } catch (err: any) {
+      Alert.alert('Delete Error', err.message || 'Could not complete account deletion.');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.cardBg} />
@@ -320,7 +402,7 @@ export default function AccountScreen() {
               <Text style={[styles.headerSub, { color: theme.subText }]}>Section 108 Supporter Profile 🪸</Text>
             </View>
 
-            {/* 1. Basic Information */}
+            {/* 1. Basic Information Accordion */}
             <TouchableOpacity
               style={[styles.accordionHeader, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
               onPress={() => setProfileExpanded(!profileExpanded)}
@@ -397,7 +479,7 @@ export default function AccountScreen() {
               </View>
             )}
 
-            {/* 2. Season Ticket Holder (STM) */}
+            {/* 2. Season Ticket Holder (STM) Accordion */}
             <TouchableOpacity
               style={[styles.accordionHeader, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
               onPress={() => setStmExpanded(!stmExpanded)}
@@ -476,22 +558,9 @@ export default function AccountScreen() {
               </View>
             )}
 
-            {/* Save Profile Button */}
+            {/* 3. Arcade High Scores Accordion */}
             <TouchableOpacity
-              style={[styles.saveProfileBtn, { backgroundColor: theme.accentOrange }]}
-              onPress={handleSaveProfile}
-              disabled={saving}
-            >
-              {saving ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <Text style={styles.saveProfileBtnText}>Save Profile Updates 🪸</Text>
-              )}
-            </TouchableOpacity>
-
-            {/* 3. Arcade High Scores */}
-            <TouchableOpacity
-              style={[styles.accordionHeader, { backgroundColor: theme.cardBg, borderColor: theme.borderColor, marginTop: 10 }]}
+              style={[styles.accordionHeader, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
               onPress={() => setGamesExpanded(!gamesExpanded)}
               activeOpacity={0.8}
             >
@@ -509,9 +578,35 @@ export default function AccountScreen() {
               </View>
             )}
 
-            <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
-              <Text style={styles.signOutText}>Sign Out</Text>
+            {/* 4. Save Profile Updates Button */}
+            <TouchableOpacity
+              style={[styles.saveProfileBtn, { backgroundColor: theme.accentOrange }]}
+              onPress={handleSaveProfile}
+              disabled={saving}
+            >
+              {saving ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.saveProfileBtnText}>Save Profile Updates 🪸</Text>
+              )}
             </TouchableOpacity>
+
+            {/* 5. Account Security & Sign Out Actions */}
+            <View style={styles.accountActionWrapper}>
+              <TouchableOpacity
+                style={styles.deleteAccountBtn}
+                onPress={() => {
+                  setDeleteInputText('');
+                  setDeleteModalVisible(true);
+                }}
+              >
+                <Text style={styles.deleteAccountText}>🗑️ Delete Account</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
+                <Text style={styles.signOutText}>Sign Out</Text>
+              </TouchableOpacity>
+            </View>
           </>
         ) : (
           /* ======================== 🔐 LOGGED OUT AUTH VIEW ======================== */
@@ -636,6 +731,66 @@ export default function AccountScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* ⚠️ DELETE ACCOUNT CONFIRMATION MODAL */}
+      <Modal
+        visible={deleteModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setDeleteModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { backgroundColor: theme.cardBg, borderColor: '#e74c3c' }]}>
+            <Text style={styles.modalWarningIcon}>⚠️</Text>
+            <Text style={[styles.modalTitle, { color: theme.accentGold }]}>DELETE ACCOUNT</Text>
+            
+            <Text style={[styles.modalWarningText, { color: theme.text }]}>
+              This action is <Text style={{ fontWeight: '900', color: '#e74c3c' }}>permanent</Text>. All your supporter passport stamps, chat posts, arcade high scores, and profile data will be permanently deleted.
+            </Text>
+
+            <Text style={[styles.modalInstructionText, { color: theme.subText }]}>
+              To confirm deletion, type <Text style={{ fontWeight: '900', color: theme.text }}>DELETE</Text> in the box below:
+            </Text>
+
+            <TextInput
+              style={[styles.deleteInput, { backgroundColor: theme.subCardBg, color: theme.text, borderColor: theme.borderColor }]}
+              value={deleteInputText}
+              onChangeText={setDeleteInputText}
+              placeholder="DELETE"
+              placeholderTextColor="#80B3B8"
+              autoCapitalize="characters"
+              autoCorrect={false}
+            />
+
+            <View style={styles.modalBtnRow}>
+              <TouchableOpacity
+                style={[styles.modalCancelBtn, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}
+                onPress={() => setDeleteModalVisible(false)}
+                disabled={deleting}
+              >
+                <Text style={[styles.modalCancelText, { color: theme.text }]}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.modalConfirmDeleteBtn,
+                  deleteInputText.trim().toUpperCase() === 'DELETE'
+                    ? { backgroundColor: '#e74c3c' }
+                    : { backgroundColor: 'rgba(231, 76, 60, 0.4)' },
+                ]}
+                onPress={handlePermanentAccountDelete}
+                disabled={deleting || deleteInputText.trim().toUpperCase() !== 'DELETE'}
+              >
+                {deleting ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.modalConfirmDeleteText}>Confirm Delete</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -658,14 +813,17 @@ const styles = StyleSheet.create({
   switchLabel: { fontSize: 13, fontWeight: '700', flex: 1, marginRight: 10 },
   label: { fontSize: 12, fontWeight: '700', marginBottom: 6 },
   input: { padding: 12, borderRadius: 10, borderWidth: 1, fontSize: 14, fontWeight: '700', marginBottom: 12 },
-  saveProfileBtn: { padding: 14, borderRadius: 12, alignItems: 'center', marginTop: 4 },
+  saveProfileBtn: { padding: 14, borderRadius: 12, alignItems: 'center', marginTop: 14, marginBottom: 10 },
   saveProfileBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '900', letterSpacing: 0.5 },
   scoreRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14, borderRadius: 10, borderWidth: 1 },
   scoreLabel: { fontSize: 14, fontWeight: '700' },
   scoreValue: { fontSize: 18, fontWeight: '900' },
   hintText: { fontSize: 11, marginTop: 8, fontStyle: 'italic', textAlign: 'center' },
-  signOutButton: { marginTop: 20, padding: 14, backgroundColor: 'rgba(231, 76, 60, 0.2)', borderWidth: 1, borderColor: '#e74c3c', borderRadius: 10, alignItems: 'center' },
-  signOutText: { color: '#e74c3c', fontWeight: '900', fontSize: 14 },
+  accountActionWrapper: { gap: 10, marginTop: 8 },
+  deleteAccountBtn: { padding: 14, backgroundColor: 'rgba(231, 76, 60, 0.12)', borderWidth: 1, borderColor: '#e74c3c', borderRadius: 10, alignItems: 'center' },
+  deleteAccountText: { color: '#e74c3c', fontWeight: '900', fontSize: 14 },
+  signOutButton: { padding: 14, backgroundColor: 'rgba(128, 179, 184, 0.12)', borderWidth: 1, borderColor: '#80B3B8', borderRadius: 10, alignItems: 'center' },
+  signOutText: { color: '#80B3B8', fontWeight: '900', fontSize: 14 },
   authCard: { padding: 20, borderRadius: 16, borderWidth: 1, marginTop: 10 },
   authHeader: { fontSize: 18, fontWeight: '900', textAlign: 'center', letterSpacing: 0.5 },
   authSub: { fontSize: 12, textAlign: 'center', marginTop: 4, marginBottom: 18, lineHeight: 18 },
@@ -685,4 +843,15 @@ const styles = StyleSheet.create({
   pickerCloseBtn: { fontSize: 18, fontWeight: '900', paddingHorizontal: 6 },
   pickerGridItem: { flex: 1, margin: 4, paddingVertical: 12, borderRadius: 8, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   pickerGridItemText: { fontSize: 13, fontWeight: '700' },
+  modalCard: { width: '100%', borderRadius: 16, borderWidth: 1.5, padding: 20, alignItems: 'center' },
+  modalWarningIcon: { fontSize: 36, marginBottom: 6 },
+  modalTitle: { fontSize: 18, fontWeight: '900', letterSpacing: 0.5, marginBottom: 8 },
+  modalWarningText: { fontSize: 13, textAlign: 'center', lineHeight: 18, marginBottom: 12 },
+  modalInstructionText: { fontSize: 12, textAlign: 'center', marginBottom: 10 },
+  deleteInput: { width: '100%', borderRadius: 10, borderWidth: 1, paddingVertical: 10, textAlign: 'center', fontSize: 16, fontWeight: '900', letterSpacing: 2, marginBottom: 16 },
+  modalBtnRow: { flexDirection: 'row', gap: 10, width: '100%' },
+  modalCancelBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, alignItems: 'center' },
+  modalCancelText: { fontSize: 13, fontWeight: '800' },
+  modalConfirmDeleteBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
+  modalConfirmDeleteText: { color: '#FFFFFF', fontSize: 13, fontWeight: '900' },
 });

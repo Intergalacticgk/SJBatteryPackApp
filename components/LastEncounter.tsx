@@ -27,7 +27,7 @@ export interface GameStats {
     team: string;
     scorer: string;
     assists: string;
-    type?: string; // 'EV', 'PP', 'SH'
+    type?: string;
   }[];
 }
 
@@ -122,7 +122,7 @@ export default function LastEncounter({
       <View style={[styles.card, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
         <View style={[styles.scoreBanner, { borderBottomColor: theme.borderColor }]}>
           
-          {/* SJ Barracuda */}
+          {/* SJ Barracuda: Teal fill (#266B73) + Solid Black Outline */}
           <View style={styles.teamCol}>
             <View style={[styles.teamBadge, styles.sjBadge]}>
               <Text style={styles.sjBadgeText}>SJ</Text>
@@ -131,7 +131,7 @@ export default function LastEncounter({
             <Text style={[styles.scoreText, { color: theme.text }]}>{scoreSJ}</Text>
           </View>
 
-          {/* Outcome Badge: Light Teal (Win) / Light Red (Loss) */}
+          {/* Outcome Badge: FINAL (W) in #266B73 font and circle outline */}
           <View style={styles.outcomeCol}>
             <View 
               style={[
@@ -142,7 +142,7 @@ export default function LastEncounter({
               <Text 
                 style={[
                   styles.statusPillText, 
-                  { color: isWin ? '#00E5FF' : '#FF5252' }
+                  { color: isWin ? '#266B73' : '#FF5252' }
                 ]}
               >
                 {isWin ? 'FINAL (W)' : 'FINAL (L)'}
@@ -358,8 +358,8 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   sjBadge: {
-    backgroundColor: '#FF6B00',
-    borderColor: '#FFB800',
+    backgroundColor: '#266B73',
+    borderColor: '#000000',
   },
   sjBadgeText: {
     color: '#FFFFFF',
@@ -392,8 +392,8 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
   },
   winPill: {
-    backgroundColor: 'rgba(0, 229, 255, 0.18)',
-    borderColor: '#00E5FF',
+    backgroundColor: 'transparent',
+    borderColor: '#266B73',
   },
   lossPill: {
     backgroundColor: 'rgba(255, 82, 82, 0.18)',
@@ -439,8 +439,6 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     letterSpacing: 0.5,
   },
-
-  // Modal styles
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.85)',
@@ -596,7 +594,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   playTeamSJ: {
-    backgroundColor: '#FF6B00',
+    backgroundColor: '#266B73',
   },
   playTeamText: {
     color: '#FFFFFF',
