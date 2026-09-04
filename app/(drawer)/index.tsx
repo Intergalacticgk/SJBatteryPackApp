@@ -6,11 +6,10 @@ import {
   ScrollView, 
   TouchableOpacity, 
   ActivityIndicator, 
-  Alert, 
   Modal, 
   SafeAreaView, 
-  StatusBar,
-  RefreshControl
+  StatusBar, 
+  RefreshControl 
 } from 'react-native';
 import * as WebBrowser from 'expo-web-browser'; 
 import { useRouter } from 'expo-router'; 
@@ -153,15 +152,9 @@ export default function HomeScreen() {
     fetchNextMatchup();
   }, []);
 
+  // Issue 6 Fix: Always opens directly when pressed
   const handleCheckInPress = () => {
-    if (isGameWindowOpen) {
-      setInfoModalVisible(true);
-    } else {
-      Alert.alert(
-        "📍 Gameday Guide", 
-        "Gameday Check-In unlocks automatically at 12:00 AM on the day of the match! Get ready to Defend The Reef."
-      );
-    }
+    setInfoModalVisible(true);
   };
 
   const doorTimes = getCalculatedDoorTimes(nextGame?.game_time || '');
@@ -301,7 +294,7 @@ export default function HomeScreen() {
             </View>
             <TouchableOpacity 
               style={[styles.checkInButton, { backgroundColor: theme.accentOrange }]}
-              onPress={() => setInfoModalVisible(true)}
+              onPress={handleCheckInPress}
               activeOpacity={0.85}
             >
               <Text style={styles.checkInButtonText}>🏟️ View Arena & Entry Guide</Text>

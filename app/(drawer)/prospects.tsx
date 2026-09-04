@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   StyleSheet, 
   Text, 
@@ -7,15 +7,24 @@ import {
   TouchableOpacity, 
   ActivityIndicator, 
   SafeAreaView, 
-  StatusBar 
+  StatusBar,
+  RefreshControl
 } from 'react-native';
 import { fetchSharksProspects, ProspectItem } from '../../services/ahlApi';
 import { useAppTheme } from '../../context/ThemeContext';
 
+interface ExtendedProspectItem extends ProspectItem {
+  birthplace?: string;
+  date_of_birth?: string;
+}
+
 export default function ProspectsScreen() {
   const { theme } = useAppTheme();
-  const [prospects, setProspects] = useState<ProspectItem[]>([]);
+  const [prospects, setProspects] = useState<ExtendedProspectItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Set default initial state to false so all are collapsed
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
     'San Jose Sharks (NHL)': false,
     'San Jose Barracuda (AHL)': false,
@@ -30,14 +39,24 @@ export default function ProspectsScreen() {
     'Juniors & NCAA / Europe',
   ];
 
-  useEffect(() => {
-    async function loadData() {
-      setLoading(true);
+  const loadData = async () => {
+    try {
       const data = await fetchSharksProspects();
       setProspects(data);
-      setLoading(false);
+    } catch (e) {
+      console.warn('Error fetching prospects', e);
     }
-    loadData();
+  };
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
+  }, []);
+
+  useEffect(() => {
+    setLoading(true);
+    loadData().finally(() => setLoading(false));
   }, []);
 
   const toggleGroup = (g: string) => {
@@ -54,8 +73,10 @@ export default function ProspectsScreen() {
           <Text style={[styles.loadingText, { color: theme.accentGold }]}>Loading Sharks System Prospects...</Text>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.scrollList}>
-          
+        <ScrollView 
+          contentContainerStyle={styles.scrollList}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accentGold} />}
+        >
           <View style={[styles.banner, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}>
             <Text style={[styles.bannerTitle, { color: theme.accentGold }]}>🦈 THE FUTURE IS TEAL</Text>
             <Text style={[styles.bannerSub, { color: theme.subText }]}>Track players across the Sharks organization pipeline</Text>
@@ -67,11 +88,7 @@ export default function ProspectsScreen() {
 
             return (
               <View key={groupName} style={[styles.groupCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-                <TouchableOpacity 
-                  style={styles.groupHeader} 
-                  onPress={() => toggleGroup(groupName)}
-                  activeOpacity={0.8}
-                >
+                <TouchableOpacity style={styles.groupHeader} onPress={() => toggleGroup(groupName)} activeOpacity={0.8}>
                   <View style={styles.groupHeaderLeft}>
                     <Text style={[styles.groupTitle, { color: theme.text }]}>{groupName}</Text>
                     <Text style={[styles.countText, { color: theme.subText }]}>({playersInGroup.length})</Text>
@@ -89,7 +106,16 @@ export default function ProspectsScreen() {
                             <Text style={[styles.posBadgeText, { color: theme.accentGold }]}>{player.position}</Text>
                           </View>
                         </View>
+                        
                         <Text style={[styles.draftText, { color: theme.subText }]}>🎯 {player.draftInfo} • {player.currentTeam}</Text>
+                        
+                        {(player.birthplace || player.date_of_birth) && (
+                           <Text style={[styles.bioText, { color: theme.subText }]}>
+                             {player.birthplace ? `🌍 Born: ${player.birthplace} ` : ''}
+                             {player.date_of_birth ? `🎂 DOB: ${player.date_of_birth}` : ''}
+                           </Text>
+                        )}
+
                         <View style={[styles.statsPill, { backgroundColor: theme.isDark ? '#001417' : '#E6ECEE' }]}>
                           <Text style={[styles.statsText, { color: theme.accentGold }]}>
                             GP: {player.gp}  |  {player.statsSummary}
@@ -129,6 +155,7 @@ const styles = StyleSheet.create({
   posBadge: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
   posBadgeText: { fontSize: 10, fontWeight: '900' },
   draftText: { fontSize: 11, marginTop: 2 },
+  bioText: { fontSize: 11, marginTop: 2, fontWeight: '600' },
   statsPill: { marginTop: 6, paddingVertical: 4, paddingHorizontal: 8, borderRadius: 6 },
   statsText: { fontSize: 11, fontWeight: '800', fontFamily: 'monospace' },
 });

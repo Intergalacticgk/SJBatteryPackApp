@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   StyleSheet,
   Text,
@@ -9,6 +9,11 @@ import {
   FlatList,
   StatusBar,
   ActivityIndicator,
+  RefreshControl,
+  Modal,
+  TextInput,
+  Switch,
+  Alert
 } from 'react-native';
 import { supabase } from '../../supabase';
 import { useAppTheme } from '../../context/ThemeContext';
@@ -27,6 +32,17 @@ export interface SupporterEvent {
 }
 
 const CATEGORIES = ['All', 'Road Trips', 'Watch Parties', 'Group Photos', 'Community & Tabling'] as const;
+
+// Reusable data for Trade Nights
+const TRADE_NIGHT_SCHEDULE = [
+  { time: '1st Intermission', detail: 'Meet up outside Section 108 / The Cove to trade and connect.' },
+  { time: '2nd Intermission', detail: 'Meet up outside Section 108 / The Cove for the final trading session of the night.' },
+];
+
+const TRADE_NIGHT_FAQS = [
+  { q: 'What items am I allowed to bring in?', a: 'The rules that we ask fans to follow are the same rules as the arena when deciding what is allowed and not allowed to be brought in.' },
+  { q: 'Are these official San Jose Barracuda events?', a: 'No, our events are independently run and not associated with the San Jose Barracuda. If you have any questions please reach out to us via email at info@sjbatterypack.com.' },
+];
 
 const FALLBACK_EVENTS: SupporterEvent[] = [
   // 🌈 1. COMMUNITY: SILICON VALLEY PRIDE PARADE
@@ -58,16 +74,11 @@ const FALLBACK_EVENTS: SupporterEvent[] = [
     category: 'Community & Tabling',
     badge: 'TRADE NIGHT',
     date: 'Saturday, December 5, 2026',
-    time: '5:30 PM - 6:45 PM',
-    location: 'Section 108 Booster Table (Next to The Cove)',
-    description: 'Bring your binders and top-loaders! Trade NHL, AHL, and Sharks prospect cards with fellow collectors before puck drop.',
-    schedule: [
-      { time: '5:30 PM', detail: 'Card trading tables open at Section 108 concourse' },
-      { time: '6:35 PM', detail: 'Warm-ups wrap & trading concludes before anthem' },
-    ],
-    faqs: [
-      { q: 'What cards can I bring?', a: 'All NHL, AHL, PWHL, and junior hockey cards are welcome for open trading.' },
-    ],
+    time: '1st & 2nd Intermissions',
+    location: 'Outside Section 108 / The Cove',
+    description: 'Bring your binders and top-loaders! Trade NHL, AHL, and Sharks prospect cards with fellow collectors during the intermissions.',
+    schedule: TRADE_NIGHT_SCHEDULE,
+    faqs: TRADE_NIGHT_FAQS,
   },
   {
     id: 'trade-jan-2027',
@@ -75,29 +86,35 @@ const FALLBACK_EVENTS: SupporterEvent[] = [
     category: 'Community & Tabling',
     badge: 'TRADE NIGHT',
     date: 'Saturday, January 23, 2027',
-    time: '2:00 PM - 2:45 PM',
-    location: 'Section 108 Booster Table',
-    description: 'Swap enamel pins, vintage Sharks patches, custom badges, and booster collectibles.',
+    time: '1st & 2nd Intermissions',
+    location: 'Outside Section 108 / The Cove',
+    description: 'Swap enamel pins, vintage patches, custom badges, and booster collectibles with other fans!',
+    schedule: TRADE_NIGHT_SCHEDULE,
+    faqs: TRADE_NIGHT_FAQS,
   },
   {
     id: 'trade-feb-2027',
-    title: 'Friendship Bracelet & PWHL Trade Night',
+    title: 'Friendship Bracelet Night',
     category: 'Community & Tabling',
     badge: 'TRADE NIGHT',
     date: 'Saturday, February 6, 2027',
-    time: '5:30 PM - 6:45 PM',
-    location: 'Section 108 Concourse',
-    description: 'Inspired by PWHL and fan traditions! Trade beaded player bracelets, women\'s hockey merch, and handmade crafts before the game.',
+    time: '1st & 2nd Intermissions',
+    location: 'Outside Section 108 / The Cove',
+    description: 'Trade beaded player bracelets and handmade crafts with your fellow Section 108 rowdies.',
+    schedule: TRADE_NIGHT_SCHEDULE,
+    faqs: TRADE_NIGHT_FAQS,
   },
   {
     id: 'trade-apr-2027',
-    title: 'Fan Appreciation Mega Trade Night',
+    title: 'Fan Appreciation Megatrade Night',
     category: 'Community & Tabling',
     badge: 'TRADE NIGHT',
     date: 'Saturday, April 10, 2027',
-    time: '5:30 PM - 6:45 PM',
-    location: 'Section 108 Booster Table',
-    description: 'Our regular season trade finale. Trade cards, bracelets, poster autographs, and season keepsakes.',
+    time: '1st & 2nd Intermissions',
+    location: 'Outside Section 108 / The Cove',
+    description: 'Our end-of-season trade finale! Bring absolutely anything you want (cards, bracelets, pins, merch) and trade with other fans during intermissions.',
+    schedule: TRADE_NIGHT_SCHEDULE,
+    faqs: TRADE_NIGHT_FAQS,
   },
 
   // 🚌 2. ROAD TRIPS (AWAY INVASIONS)
@@ -286,38 +303,6 @@ const FALLBACK_EVENTS: SupporterEvent[] = [
     location: 'Local Partner Bar TBA',
     description: 'Season finale road watch party before playoff hockey arrives!',
   },
-
-  // ⛺ 5. CONCOURSE TABLING & BOOSTER EVENTS
-  {
-    id: 'table-nov-2026',
-    title: 'Section 108 Concourse Info & Merch Tabling',
-    category: 'Community & Tabling',
-    badge: 'CONCOURSE TABLING',
-    date: 'Sunday, November 1, 2026',
-    time: 'Doors Open to End of 2nd Intermission',
-    location: 'Tech CU Arena Concourse (Near Section 108)',
-    description: 'Visit the official Battery Pack table to pick up membership stickers, learn game chants, sign up for away trips, and meet club leadership!',
-  },
-  {
-    id: 'table-jan-2027',
-    title: 'Winter Concourse Booster Tabling',
-    category: 'Community & Tabling',
-    badge: 'CONCOURSE TABLING',
-    date: 'Saturday, January 23, 2027',
-    time: 'Doors Open to End of 2nd Intermission',
-    location: 'Tech CU Arena Concourse (Near Section 108)',
-    description: 'Stop by our concourse table to check in, claim passport stamp information, and get info on upcoming away road trips.',
-  },
-  {
-    id: 'table-mar-2027',
-    title: 'Playoff Push Concourse Tabling',
-    category: 'Community & Tabling',
-    badge: 'CONCOURSE TABLING',
-    date: 'Sunday, March 21, 2027',
-    time: 'Doors Open to End of 2nd Intermission',
-    location: 'Tech CU Arena Concourse (Near Section 108)',
-    description: 'Gear up for the postseason with the Battery Pack! Tabling on the concourse with booster swag, songbooks, and rally signs.',
-  },
 ];
 
 export default function EventsScreen() {
@@ -326,14 +311,16 @@ export default function EventsScreen() {
   const [expandedEventId, setExpandedEventId] = useState<string | null>(null);
   const [events, setEvents] = useState<SupporterEvent[]>(FALLBACK_EVENTS);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    fetchEvents();
-  }, []);
+  // Intake Form State
+  const [formVisible, setFormVisible] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [selectedRoadTrip, setSelectedRoadTrip] = useState<SupporterEvent | null>(null);
+  const [formData, setFormData] = useState({ name: '', email: '', partySize: '1', hotelInterest: false });
 
   const fetchEvents = async () => {
     try {
-      setLoading(true);
       const { data, error } = await supabase
         .from('supporter_events')
         .select('*')
@@ -361,12 +348,58 @@ export default function EventsScreen() {
     }
   };
 
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchEvents();
+    setRefreshing(false);
+  }, []);
+
+  useEffect(() => {
+    setLoading(true);
+    fetchEvents();
+  }, []);
+
   const filteredEvents = selectedCategory === 'All'
     ? events
     : events.filter((e) => e.category === selectedCategory);
 
   const toggleExpand = (id: string) => {
     setExpandedEventId(expandedEventId === id ? null : id);
+  };
+
+  const openIntakeForm = (event: SupporterEvent) => {
+    setSelectedRoadTrip(event);
+    setFormData({ name: '', email: '', partySize: '1', hotelInterest: false });
+    setFormVisible(true);
+  };
+
+  const submitIntakeForm = async () => {
+    if (!formData.name || !formData.email || !formData.partySize) {
+      Alert.alert('Missing Fields', 'Please fill out your name, email, and party size.');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const { error } = await supabase.from('road_trip_interest').insert([{
+        event_id: selectedRoadTrip?.id,
+        event_name: selectedRoadTrip?.title,
+        fan_name: formData.name,
+        email: formData.email,
+        party_size: parseInt(formData.partySize, 10),
+        hotel_interest: formData.hotelInterest
+      }]);
+
+      if (error) throw error;
+      
+      Alert.alert('Success!', 'Your interest has been logged. We will email you ticket & hotel details soon!');
+      setFormVisible(false);
+    } catch (err) {
+      Alert.alert('Error', 'Could not submit your form. Please try again.');
+      console.warn('Intake form error:', err);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -413,7 +446,17 @@ export default function EventsScreen() {
           <ActivityIndicator size="large" color={theme.accentGold} />
         </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.contentPadding}>
+        <ScrollView 
+          contentContainerStyle={styles.contentPadding}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={theme.accentGold}
+              colors={[theme.accentGold, theme.accentOrange]}
+            />
+          }
+        >
           <View style={[styles.bannerCard, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}>
             <Text style={[styles.bannerTitle, { color: theme.accentGold }]}>📅 2026-27 SUPPORTER CALENDAR</Text>
             <Text style={[styles.bannerSub, { color: theme.subText }]}>
@@ -423,6 +466,7 @@ export default function EventsScreen() {
 
           {filteredEvents.map((item) => {
             const isExpanded = expandedEventId === item.id;
+            const isRoadTrip = item.category === 'Road Trips';
 
             return (
               <View
@@ -441,6 +485,15 @@ export default function EventsScreen() {
                 <Text style={[styles.eventMeta, { color: theme.subText }]}>📍 {item.location}</Text>
                 <Text style={[styles.eventMeta, { color: theme.accentGold, marginBottom: 8 }]}>⏰ {item.time}</Text>
                 <Text style={[styles.eventDesc, { color: theme.text }]}>{item.description}</Text>
+
+                {isRoadTrip && (
+                  <TouchableOpacity
+                    style={[styles.intakeBtn, { backgroundColor: theme.accentOrange }]}
+                    onPress={() => openIntakeForm(item)}
+                  >
+                    <Text style={styles.intakeBtnText}>🚌 Group Tickets & Hotel Interest</Text>
+                  </TouchableOpacity>
+                )}
 
                 {/* Expandable Itinerary & FAQs */}
                 {isExpanded && (
@@ -485,6 +538,61 @@ export default function EventsScreen() {
           })}
         </ScrollView>
       )}
+
+      {/* Road Trip Intake Modal */}
+      <Modal visible={formVisible} animationType="slide" transparent={true}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContainer, { backgroundColor: theme.cardBg, borderColor: theme.accentGold }]}>
+            <Text style={[styles.modalTitle, { color: theme.accentGold }]}>Join the Invasion!</Text>
+            <Text style={[styles.modalSub, { color: theme.text }]}>{selectedRoadTrip?.title}</Text>
+            
+            <TextInput
+              style={[styles.input, { backgroundColor: theme.subCardBg, color: theme.text, borderColor: theme.borderColor }]}
+              placeholder="Full Name"
+              placeholderTextColor={theme.subText}
+              value={formData.name}
+              onChangeText={(text) => setFormData({ ...formData, name: text })}
+            />
+            
+            <TextInput
+              style={[styles.input, { backgroundColor: theme.subCardBg, color: theme.text, borderColor: theme.borderColor }]}
+              placeholder="Email Address"
+              placeholderTextColor={theme.subText}
+              keyboardType="email-address"
+              value={formData.email}
+              onChangeText={(text) => setFormData({ ...formData, email: text })}
+            />
+
+            <TextInput
+              style={[styles.input, { backgroundColor: theme.subCardBg, color: theme.text, borderColor: theme.borderColor }]}
+              placeholder="Party Size (Number of Tickets)"
+              placeholderTextColor={theme.subText}
+              keyboardType="numeric"
+              value={formData.partySize}
+              onChangeText={(text) => setFormData({ ...formData, partySize: text })}
+            />
+
+            <View style={styles.switchRow}>
+              <Text style={[styles.switchLabel, { color: theme.text }]}>Interested in Group Hotel Discounts?</Text>
+              <Switch
+                value={formData.hotelInterest}
+                onValueChange={(val) => setFormData({ ...formData, hotelInterest: val })}
+                trackColor={{ false: theme.borderColor, true: theme.accentGold }}
+              />
+            </View>
+
+            <View style={styles.modalBtnRow}>
+              <TouchableOpacity style={[styles.modalCancelBtn, { borderColor: theme.borderColor }]} onPress={() => setFormVisible(false)}>
+                <Text style={[styles.modalCancelText, { color: theme.subText }]}>Cancel</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity style={[styles.modalSubmitBtn, { backgroundColor: theme.accentGold }]} onPress={submitIntakeForm} disabled={submitting}>
+                {submitting ? <ActivityIndicator size="small" color="#001417" /> : <Text style={styles.modalSubmitText}>Submit Interest</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -517,4 +625,20 @@ const styles = StyleSheet.create({
   faqA: { fontSize: 12, fontWeight: '500', lineHeight: 16 },
   expandBtn: { paddingVertical: 8, borderRadius: 8, borderWidth: 1, alignItems: 'center', marginTop: 6 },
   expandBtnText: { fontSize: 12, fontWeight: '800' },
+  
+  // Intake Form Styles
+  intakeBtn: { paddingVertical: 10, borderRadius: 8, alignItems: 'center', marginTop: 10, marginBottom: 4 },
+  intakeBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '900' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', paddingHorizontal: 20 },
+  modalContainer: { padding: 20, borderRadius: 16, borderWidth: 1 },
+  modalTitle: { fontSize: 18, fontWeight: '900', marginBottom: 4, textAlign: 'center' },
+  modalSub: { fontSize: 13, fontWeight: '600', marginBottom: 16, textAlign: 'center' },
+  input: { paddingHorizontal: 14, paddingVertical: 12, borderRadius: 8, borderWidth: 1, marginBottom: 12, fontSize: 14, fontWeight: '500' },
+  switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, paddingHorizontal: 4 },
+  switchLabel: { fontSize: 14, fontWeight: '600' },
+  modalBtnRow: { flexDirection: 'row', gap: 12 },
+  modalCancelBtn: { flex: 1, paddingVertical: 12, borderRadius: 8, borderWidth: 1, alignItems: 'center' },
+  modalCancelText: { fontSize: 14, fontWeight: '800' },
+  modalSubmitBtn: { flex: 1, paddingVertical: 12, borderRadius: 8, alignItems: 'center' },
+  modalSubmitText: { color: '#001417', fontSize: 14, fontWeight: '900' }
 });

@@ -12,14 +12,12 @@ function CustomDrawerContent(props: any) {
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.cardBg }}>
-      {/* Top Safe Area Container to prevent notch collision */}
       <View style={{ height: insets.top, backgroundColor: theme.cardBg }} />
       
       <DrawerContentScrollView 
         {...props} 
         contentContainerStyle={{ paddingTop: 8 }}
       >
-        {/* Header Branding */}
         <View style={[styles.drawerHeader, { borderBottomColor: theme.borderColor }]}>
           <Text style={[styles.drawerHeaderTitle, { color: theme.accentGold }]}>🪸 SJ BATTERY PACK</Text>
           <Text style={[styles.drawerHeaderSub, { color: theme.subText }]}>Section 108 • Official Supporters</Text>
@@ -28,7 +26,6 @@ function CustomDrawerContent(props: any) {
         <DrawerItemList {...props} />
       </DrawerContentScrollView>
 
-      {/* 🌗 Bottom Left Theme Toggle Bar */}
       <View style={[
         styles.bottomBar, 
         { 
@@ -80,38 +77,121 @@ function DrawerNavigation() {
           drawerItemStyle: { borderRadius: 10, marginVertical: 3, paddingHorizontal: 6 },
         }}
       >
+        {/* =========================================
+            VISIBLE DRAWER SCREENS (7 Clean Items)
+           ========================================= */}
+
         {/* 1. 🏠 Home */}
-        <Drawer.Screen name="index" options={{ drawerLabel: 'Home', title: 'Home' }} />
+        <Drawer.Screen 
+          name="index" 
+          options={{ 
+            drawerLabel: 'Home', 
+            title: 'Home' 
+          }} 
+        />
 
-        {/* 2. 🛂 Digital Passport */}
-        <Drawer.Screen name="passport" options={{ drawerLabel: 'Digital Passport', title: 'Digital Passport' }} />
+        {/* 2. 📅 Schedule & Meetups */}
+        <Drawer.Screen 
+          name="schedule" 
+          options={{ 
+            drawerLabel: 'Schedule & Events', 
+            title: 'Barracuda Schedule' 
+          }} 
+        />
 
-        {/* 3. 📅 Schedule */}
-        <Drawer.Screen name="schedule" options={{ drawerLabel: 'Schedule', title: 'Barracuda Schedule' }} />
+        {/* 3. 🏒 Current Roster */}
+        <Drawer.Screen 
+          name="roster" 
+          options={{ 
+            drawerLabel: 'Barracuda Roster', 
+            title: 'Barracuda Roster' 
+          }} 
+        />
 
-        {/* 4. 🏒 Current Roster */}
-        <Drawer.Screen name="roster" options={{ drawerLabel: 'Current Roster', title: 'Barracuda Roster' }} />
+        {/* 4. 🌟 Prospects Tracker */}
+        <Drawer.Screen 
+          name="prospects" 
+          options={{ 
+            drawerLabel: 'Prospects Tracker', 
+            title: 'Sharks System Prospects' 
+          }} 
+        />
 
-        {/* 5. 🌟 Prospects Tracker */}
-        <Drawer.Screen name="prospects" options={{ drawerLabel: 'Prospects', title: 'Sharks System Prospects' }} />
+        {/* 5. ⚡️ Fan Zone Hub (Chants, Gallery, Chat) */}
+        <Drawer.Screen 
+          name="fanzone" 
+          options={{ 
+            drawerLabel: 'Fan Zone', 
+            title: 'Section 108 Fan Zone' 
+          }} 
+        />
 
-        {/* 6. 🗣️ Chants */}
-        <Drawer.Screen name="fanzone" options={{ drawerLabel: 'Chants', title: 'Section 108 Chants' }} />
+        {/* 6. 🪸 The Pack Gives Back (Donations & Non-Profit) */}
+        <Drawer.Screen 
+          name="donations" 
+          options={{ 
+            drawerLabel: 'The Pack Gives Back', 
+            title: 'The Pack Gives Back 🪸' 
+          }} 
+        />
 
-        {/* 7. 📅 Events & Meetups */}
-        <Drawer.Screen name="events" options={{ drawerLabel: 'Events', title: 'Supporter Events' }} />
+        {/* 7. 👤 Account */}
+        <Drawer.Screen 
+          name="info" 
+          options={{ 
+            drawerLabel: 'Account', 
+            title: 'My Account & Auth' 
+          }} 
+        />
 
-        {/* 8. 💬 Chat */}
-        <Drawer.Screen name="chat" options={{ drawerLabel: 'Chat', title: 'Supporter Chat' }} />
+        {/* =========================================
+            HIDDEN REGISTERED SCREENS (No 404s)
+           ========================================= */}
 
-        {/* 8. 📸 Fan Gallery */}
-        <Drawer.Screen name="gallery" options={{ drawerLabel: 'Fan Gallery', title: 'Reef Fan Gallery' }} />
+        {/* Digital Passport */}
+        <Drawer.Screen 
+          name="passport" 
+          options={{ 
+            drawerItemStyle: { display: 'none' }, 
+            title: 'Digital Passport' 
+          }} 
+        />
 
-        {/* 9. 🗳️ Polls */}
-        <Drawer.Screen name="polls" options={{ drawerLabel: 'Polls', title: 'Supporter Polls' }} />
+        {/* Events */}
+        <Drawer.Screen 
+          name="events" 
+          options={{ 
+            drawerItemStyle: { display: 'none' }, 
+            title: 'Supporter Events' 
+          }} 
+        />
 
-        {/* 10. 👤 Account */}
-        <Drawer.Screen name="info" options={{ drawerLabel: 'Account', title: 'My Account & Auth' }} />
+        {/* Standalone Chat (Can still be launched via router.push) */}
+        <Drawer.Screen 
+          name="chat" 
+          options={{ 
+            drawerItemStyle: { display: 'none' }, 
+            title: 'Supporter Chat' 
+          }} 
+        />
+
+        {/* Standalone Gallery */}
+        <Drawer.Screen 
+          name="gallery" 
+          options={{ 
+            drawerItemStyle: { display: 'none' }, 
+            title: 'Reef Fan Gallery' 
+          }} 
+        />
+
+        {/* Polls */}
+        <Drawer.Screen 
+          name="polls" 
+          options={{ 
+            drawerItemStyle: { display: 'none' }, 
+            title: 'Supporter Polls' 
+          }} 
+        />
       </Drawer>
     </GestureHandlerRootView>
   );

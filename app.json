@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.sjbatterypack.myapp",
-      "buildNumber": "2.1.1",
+      "buildNumber": "2.1.2",
       "usesAppleSignIn": true,
       "icon": "./assets/images/icon.png",
       "splash": {
@@ -36,7 +36,7 @@
     },
     "android": {
       "package": "com.sjbatterypack.myapp",
-      "versionCode": 46,
+      "versionCode": 47,
       "softwareKeyboardLayoutMode": "resize",
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
