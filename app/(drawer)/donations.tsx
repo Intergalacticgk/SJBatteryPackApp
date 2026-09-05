@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   StyleSheet,
   Text,
@@ -7,9 +7,14 @@ import {
   ScrollView,
   TouchableOpacity,
   StatusBar,
+  Modal,
+  TextInput,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import { useAppTheme } from '../../context/ThemeContext';
+import { supabase } from '../../supabase';
 
 // REPLACE THIS with your actual Stripe Payment Link
 const STRIPE_DONATION_LINK = 'https://buy.stripe.com/fZu3cxaYYbCw1lE0SvfrW00';
@@ -17,8 +22,54 @@ const STRIPE_DONATION_LINK = 'https://buy.stripe.com/fZu3cxaYYbCw1lE0SvfrW00';
 export default function DonationsScreen() {
   const { theme } = useAppTheme();
 
+  // Volunteer Modal State
+  const [modalVisible, setModalVisible] = useState(false);
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [causes, setCauses] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
   const handleDonate = async () => {
     await WebBrowser.openBrowserAsync(STRIPE_DONATION_LINK);
+  };
+
+  const handleSubmitVolunteer = async () => {
+    if (!fullName.trim() || !email.trim()) {
+      Alert.alert('Missing Fields', 'Please provide at least your full name and email address.');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const { error } = await supabase.from('community_volunteers').insert([
+        {
+          full_name: fullName.trim(),
+          email: email.trim().toLowerCase(),
+          phone: phone.trim() || null,
+          causes_interested: causes.trim() || null,
+        },
+      ]);
+
+      if (error) throw error;
+
+      Alert.alert(
+        'Thank You! 🪸',
+        'Your interest has been received! We will reach out when new community service initiatives, clean-ups, and drives are scheduled.'
+      );
+
+      // Reset Form & Close
+      setFullName('');
+      setEmail('');
+      setPhone('');
+      setCauses('');
+      setModalVisible(false);
+    } catch (err: any) {
+      console.warn('Volunteer submit error:', err);
+      Alert.alert('Submission Error', err.message || 'Could not save your information. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -26,7 +77,6 @@ export default function DonationsScreen() {
       <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.cardBg} />
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        
         {/* Banner Section */}
         <View style={[styles.bannerCard, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}>
           <Text style={[styles.bannerTitle, { color: theme.accentGold }]}>THE PACK GIVES BACK</Text>
@@ -44,9 +94,9 @@ export default function DonationsScreen() {
           <Text style={[styles.bodyText, { color: theme.text, marginTop: 10, marginBottom: 14 }]}>
             Join us in making every game more meaningful! Check out securely using Apple Pay, Google Pay, or a major credit card.
           </Text>
-          
-          <TouchableOpacity 
-            style={[styles.donateButton, { backgroundColor: theme.accentOrange }]} 
+
+          <TouchableOpacity
+            style={[styles.donateButton, { backgroundColor: theme.accentOrange }]}
             onPress={handleDonate}
             activeOpacity={0.85}
           >
@@ -104,23 +154,108 @@ export default function DonationsScreen() {
           </View>
         </View>
 
-        {/* Future of Our Mission */}
+        {/* Future of Our Mission & Volunteer Sign-Up CTA */}
         <View style={[styles.contentCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
           <Text style={[styles.sectionTitle, { color: theme.accentGold }]}>The Future of Our Mission</Text>
           <Text style={[styles.bodyText, { color: theme.text }]}>
             Our work is just getting started. We are actively building partnerships and planning new ways to give back, including:
           </Text>
-          <Text style={[styles.bodyText, { color: theme.subText, marginTop: 8 }]}>• Regular Creek Clean Ups to preserve San Jose & Santa Clara waterways.</Text>
-          <Text style={[styles.bodyText, { color: theme.subText, marginTop: 4 }]}>• Community Blood Drives to help save lives.</Text>
-          <Text style={[styles.bodyText, { color: theme.text, marginTop: 12, fontWeight: '700' }]}>
-            Want to get involved?
+          <Text style={[styles.bodyText, { color: theme.subText, marginTop: 8 }]}>
+            • Regular Creek Clean Ups to preserve San Jose & Santa Clara waterways.
           </Text>
-          <Text style={[styles.bodyText, { color: theme.text, marginTop: 4 }]}>
-            If you have a cause you're passionate about or would like to volunteer, we’d love to hear from you. Together, we are more than fans; we are a force for good.
+          <Text style={[styles.bodyText, { color: theme.subText, marginTop: 4 }]}>
+            • Community Blood Drives to help save lives.
           </Text>
-        </View>
 
+          <Text style={[styles.sectionTitle, { color: theme.accentGold, marginTop: 16 }]}>Want to get involved?</Text>
+          <Text style={[styles.bodyText, { color: theme.text, marginTop: 4, marginBottom: 14 }]}>
+            If you have a cause you're passionate about or would like to volunteer, we'd love to hear from you. Together, we are more than fans; we are a force for good.
+          </Text>
+
+          <TouchableOpacity
+            style={[styles.volunteerButton, { backgroundColor: theme.accentGold }]}
+            onPress={() => setModalVisible(true)}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.volunteerButtonText}>🙋 Sign Up for Community Events</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
+
+      {/* Volunteer Intake Modal */}
+      <Modal visible={modalVisible} transparent animationType="slide" onRequestClose={() => setModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: theme.cardBg, borderColor: theme.accentGold }]}>
+            <Text style={[styles.modalHeaderTitle, { color: theme.accentGold }]}>🤝 COMMUNITY VOLUNTEER SIGN-UP</Text>
+            <Text style={[styles.modalHeaderSub, { color: theme.subText }]}>
+              Join the volunteer roster for upcoming creek clean-ups, drives, and community events!
+            </Text>
+
+            <Text style={[styles.inputLabel, { color: theme.subText }]}>Full Name *</Text>
+            <TextInput
+              style={[styles.input, { backgroundColor: theme.subCardBg, color: theme.text, borderColor: theme.borderColor }]}
+              placeholder="e.g. Alex Teal"
+              placeholderTextColor="#80B3B8"
+              value={fullName}
+              onChangeText={setFullName}
+            />
+
+            <Text style={[styles.inputLabel, { color: theme.subText }]}>Email Address *</Text>
+            <TextInput
+              style={[styles.input, { backgroundColor: theme.subCardBg, color: theme.text, borderColor: theme.borderColor }]}
+              placeholder="e.g. alex@example.com"
+              placeholderTextColor="#80B3B8"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              value={email}
+              onChangeText={setEmail}
+            />
+
+            <Text style={[styles.inputLabel, { color: theme.subText }]}>Phone Number (Optional)</Text>
+            <TextInput
+              style={[styles.input, { backgroundColor: theme.subCardBg, color: theme.text, borderColor: theme.borderColor }]}
+              placeholder="e.g. (408) 555-0199"
+              placeholderTextColor="#80B3B8"
+              keyboardType="phone-pad"
+              value={phone}
+              onChangeText={setPhone}
+            />
+
+            <Text style={[styles.inputLabel, { color: theme.subText }]}>Causes / Volunteer Interests (Optional)</Text>
+            <TextInput
+              style={[styles.textArea, { backgroundColor: theme.subCardBg, color: theme.text, borderColor: theme.borderColor }]}
+              placeholder="e.g. Creek clean-ups, food drives, blood drives, event coordination..."
+              placeholderTextColor="#80B3B8"
+              multiline
+              numberOfLines={3}
+              value={causes}
+              onChangeText={setCauses}
+            />
+
+            <View style={styles.modalButtonsRow}>
+              <TouchableOpacity
+                style={[styles.modalCancelBtn, { borderColor: theme.borderColor }]}
+                onPress={() => setModalVisible(false)}
+                disabled={submitting}
+              >
+                <Text style={[styles.modalCancelText, { color: theme.subText }]}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.modalSubmitBtn, { backgroundColor: theme.accentOrange }]}
+                onPress={handleSubmitVolunteer}
+                disabled={submitting}
+              >
+                {submitting ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.modalSubmitText}>Submit ➔</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -136,6 +271,22 @@ const styles = StyleSheet.create({
   bodyText: { fontSize: 13, lineHeight: 20, fontWeight: '500' },
   donateButton: { paddingVertical: 14, borderRadius: 10, alignItems: 'center' },
   donateButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '900' },
+  volunteerButton: { paddingVertical: 14, borderRadius: 10, alignItems: 'center' },
+  volunteerButtonText: { color: '#001417', fontSize: 15, fontWeight: '900' },
   initiativeBlock: { paddingLeft: 12, borderLeftWidth: 3, marginBottom: 16 },
-  initiativeTitle: { fontSize: 14, fontWeight: '800', marginBottom: 4 }
+  initiativeTitle: { fontSize: 14, fontWeight: '800', marginBottom: 4 },
+
+  // Modal Styles
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'center', alignItems: 'center', padding: 16 },
+  modalContent: { width: '100%', borderRadius: 16, borderWidth: 1, padding: 18 },
+  modalHeaderTitle: { fontSize: 16, fontWeight: '900', textAlign: 'center', letterSpacing: 0.5 },
+  modalHeaderSub: { fontSize: 12, textAlign: 'center', marginTop: 4, marginBottom: 14, lineHeight: 16 },
+  inputLabel: { fontSize: 11, fontWeight: '700', marginBottom: 4 },
+  input: { padding: 10, borderRadius: 8, borderWidth: 1, fontSize: 13, marginBottom: 10 },
+  textArea: { padding: 10, borderRadius: 8, borderWidth: 1, fontSize: 13, minHeight: 70, textAlignVertical: 'top', marginBottom: 14 },
+  modalButtonsRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
+  modalCancelBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, alignItems: 'center' },
+  modalCancelText: { fontSize: 13, fontWeight: '700' },
+  modalSubmitBtn: { flex: 2, paddingVertical: 12, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  modalSubmitText: { color: '#FFFFFF', fontSize: 14, fontWeight: '900' },
 });

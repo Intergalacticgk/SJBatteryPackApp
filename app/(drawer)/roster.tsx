@@ -84,26 +84,54 @@ export default function RosterScreen() {
               <Text style={[styles.bioText, { color: theme.subText }]}>🎂 DOB: {item.date_of_birth}</Text>
             )}
           </View>
+          {/* GP: Label on top, Value below */}
           <View style={styles.gpContainer}>
-            <Text style={[styles.gpVal, { color: theme.text }]}>{item.gp ?? 0}</Text>
             <Text style={[styles.gpLabel, { color: theme.subText }]}>GP</Text>
+            <Text style={[styles.gpVal, { color: theme.text }]}>{item.gp ?? 0}</Text>
           </View>
         </View>
 
         {isGoalie ? (
           <View style={[styles.statRow, { backgroundColor: theme.subCardBg, borderTopColor: theme.borderColor }]}>
-            <View style={styles.statCol}><Text style={[styles.statNum, { color: theme.text }]}>{item.wins ?? 0}-{item.losses ?? 0}-{item.otl ?? 0}</Text><Text style={[styles.statLabel, { color: theme.subText }]}>RECORD</Text></View>
-            <View style={styles.statCol}><Text style={[styles.statNum, { color: theme.accentGold }]}>{item.gaa || '0.00'}</Text><Text style={[styles.statLabel, { color: theme.subText }]}>GAA</Text></View>
-            <View style={styles.statCol}><Text style={[styles.statNum, { color: theme.accentGold }]}>{item.svPct || '.000'}</Text><Text style={[styles.statLabel, { color: theme.subText }]}>SV%</Text></View>
-            <View style={styles.statCol}><Text style={[styles.statNum, { color: theme.text }]}>{item.so ?? 0}</Text><Text style={[styles.statLabel, { color: theme.subText }]}>SO</Text></View>
+            <View style={styles.statCol}>
+              <Text style={[styles.statLabel, { color: theme.subText }]}>RECORD</Text>
+              <Text style={[styles.statNum, { color: theme.text }]}>{item.wins ?? 0}-{item.losses ?? 0}-{item.otl ?? 0}</Text>
+            </View>
+            <View style={styles.statCol}>
+              <Text style={[styles.statLabel, { color: theme.subText }]}>GAA</Text>
+              <Text style={[styles.statNum, { color: theme.accentGold }]}>{item.gaa || '0.00'}</Text>
+            </View>
+            <View style={styles.statCol}>
+              <Text style={[styles.statLabel, { color: theme.subText }]}>SV%</Text>
+              <Text style={[styles.statNum, { color: theme.accentGold }]}>{item.svPct || '.000'}</Text>
+            </View>
+            <View style={styles.statCol}>
+              <Text style={[styles.statLabel, { color: theme.subText }]}>SO</Text>
+              <Text style={[styles.statNum, { color: theme.text }]}>{item.so ?? 0}</Text>
+            </View>
           </View>
         ) : (
           <View style={[styles.statRow, { backgroundColor: theme.subCardBg, borderTopColor: theme.borderColor }]}>
-            <View style={styles.statCol}><Text style={[styles.statNum, { color: theme.accentGold }]}>{item.goals ?? 0}</Text><Text style={[styles.statLabel, { color: theme.subText }]}>G</Text></View>
-            <View style={styles.statCol}><Text style={[styles.statNum, { color: theme.accentGold }]}>{item.assists ?? 0}</Text><Text style={[styles.statLabel, { color: theme.subText }]}>A</Text></View>
-            <View style={styles.statCol}><Text style={[styles.statNum, { color: theme.accentGold }]}>{item.points ?? 0}</Text><Text style={[styles.statLabel, { color: theme.subText }]}>PTS</Text></View>
-            <View style={styles.statCol}><Text style={[styles.statNum, { color: theme.text }]}>{(item.plusMinus ?? 0) > 0 ? `+${item.plusMinus}` : item.plusMinus ?? 0}</Text><Text style={[styles.statLabel, { color: theme.subText }]}>+/-</Text></View>
-            <View style={styles.statCol}><Text style={[styles.statNum, { color: theme.text }]}>{item.pim ?? 0}</Text><Text style={[styles.statLabel, { color: theme.subText }]}>PIM</Text></View>
+            <View style={styles.statCol}>
+              <Text style={[styles.statLabel, { color: theme.subText }]}>G</Text>
+              <Text style={[styles.statNum, { color: theme.accentGold }]}>{item.goals ?? 0}</Text>
+            </View>
+            <View style={styles.statCol}>
+              <Text style={[styles.statLabel, { color: theme.subText }]}>A</Text>
+              <Text style={[styles.statNum, { color: theme.accentGold }]}>{item.assists ?? 0}</Text>
+            </View>
+            <View style={styles.statCol}>
+              <Text style={[styles.statLabel, { color: theme.subText }]}>PTS</Text>
+              <Text style={[styles.statNum, { color: theme.accentGold }]}>{item.points ?? 0}</Text>
+            </View>
+            <View style={styles.statCol}>
+              <Text style={[styles.statLabel, { color: theme.subText }]}>+/-</Text>
+              <Text style={[styles.statNum, { color: theme.text }]}>{(item.plusMinus ?? 0) > 0 ? `+${item.plusMinus}` : item.plusMinus ?? 0}</Text>
+            </View>
+            <View style={styles.statCol}>
+              <Text style={[styles.statLabel, { color: theme.subText }]}>PIM</Text>
+              <Text style={[styles.statNum, { color: theme.text }]}>{item.pim ?? 0}</Text>
+            </View>
           </View>
         )}
       </View>
@@ -187,10 +215,10 @@ const styles = StyleSheet.create({
   playerPos: { fontSize: 12, fontWeight: '700', marginTop: 1 },
   bioText: { fontSize: 11, marginTop: 2, fontWeight: '600' },
   gpContainer: { alignItems: 'center', paddingHorizontal: 6 },
+  gpLabel: { fontSize: 9, fontWeight: '800', marginBottom: 2, letterSpacing: 0.5 },
   gpVal: { fontSize: 16, fontWeight: '900' },
-  gpLabel: { fontSize: 9, fontWeight: '700' },
   statRow: { flexDirection: 'row', borderTopWidth: 1, paddingVertical: 8, paddingHorizontal: 6 },
   statCol: { flex: 1, alignItems: 'center' },
+  statLabel: { fontSize: 9, fontWeight: '800', marginBottom: 2, letterSpacing: 0.5 },
   statNum: { fontSize: 13, fontWeight: '900' },
-  statLabel: { fontSize: 9, fontWeight: '700', marginTop: 1 },
 });

@@ -31,6 +31,17 @@ interface UpcomingGame {
   promo?: string;
 }
 
+interface MatchedSupporterEvent {
+  id: string;
+  title: string;
+  category: string;
+  badge: string;
+  event_time: string;
+  location: string;
+  description: string;
+  icon?: string;
+}
+
 type GuideTab = 'TIMELINE' | 'PARKING' | 'SECURITY' | 'FOOD';
 
 export default function HomeScreen() {
@@ -40,6 +51,7 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [nextGame, setNextGame] = useState<UpcomingGame | null>(null);
+  const [matchedEvents, setMatchedEvents] = useState<MatchedSupporterEvent[]>([]);
   const [isGameWindowOpen, setIsGameWindowOpen] = useState(false);
   const [infoModalVisible, setInfoModalVisible] = useState(false);
   const [activeTab, setActiveTab] = useState<GuideTab>('TIMELINE');
@@ -101,14 +113,10 @@ export default function HomeScreen() {
   const checkGamedayActive = (gameDateStr: string) => {
     if (!gameDateStr) return;
     const todayLocalStr = new Date().toLocaleDateString('sv-SE');
-    if (todayLocalStr === gameDateStr) {
-      setIsGameWindowOpen(true);
-    } else {
-      setIsGameWindowOpen(false);
-    }
+    setIsGameWindowOpen(todayLocalStr === gameDateStr);
   };
 
-  const fetchNextMatchup = async () => {
+  const fetchNextMatchupAndEvents = useCallback(async () => {
     try {
       const todayString = new Date().toLocaleDateString('sv-SE'); 
 
@@ -125,34 +133,58 @@ export default function HomeScreen() {
         const game = data[0];
         setNextGame(game);
         checkGamedayActive(game.game_date);
+
+        // Fetch corresponding supporter events for this game date
+        const { data: eventsData } = await supabase
+          .from('supporter_events')
+          .select('*')
+          .eq('event_date', game.game_date);
+
+        if (Array.isArray(eventsData)) {
+          setMatchedEvents(
+            eventsData.map((e: any) => ({
+              id: String(e.id),
+              title: e.title,
+              category: e.category,
+              badge: e.badge,
+              event_time: e.event_time,
+              location: e.location,
+              description: e.description,
+              icon: e.icon || '🏒',
+            }))
+          );
+        } else {
+          setMatchedEvents([]);
+        }
       } else {
         setNextGame(null);
+        setMatchedEvents([]);
       }
     } catch (err) {
       console.warn("Supabase schedule fetch fallback engaged:", err);
       setNextGame(null);
+      setMatchedEvents([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await fetchNextMatchup();
+      await fetchNextMatchupAndEvents();
       setRefreshKey((prev) => prev + 1);
     } catch (err) {
       console.warn("Pull to refresh error:", err);
     } finally {
       setRefreshing(false);
     }
-  }, []);
+  }, [fetchNextMatchupAndEvents]);
 
   useEffect(() => {
-    fetchNextMatchup();
-  }, []);
+    fetchNextMatchupAndEvents();
+  }, [fetchNextMatchupAndEvents]);
 
-  // Issue 6 Fix: Always opens directly when pressed
   const handleCheckInPress = () => {
     setInfoModalVisible(true);
   };
@@ -161,22 +193,107 @@ export default function HomeScreen() {
 
   const renderTabContent = () => {
     switch (activeTab) {
-      case 'TIMELINE':
+      case 'TIMELINE': {
+        const tablingEvent = matchedEvents.find(
+          (evt) => evt.category?.toLowerCase() === 'tabling'
+        );
+
         return (
           <View>
+            {/* 1. Gameday Entry Schedule */}
             <View style={[styles.infoBox, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}>
-              <Text style={[styles.infoTitle, { color: theme.accentGold }]}>🕒 Gameday Entry Schedule</Text>
-              <Text style={[styles.infoBody, { color: theme.text }]}>• <Text style={[styles.boldText, { color: theme.accentGold }]}>{doorTimes.memberTime}</Text> – Co-Branded Card Holders & Season Ticket Members early gate entry opens.</Text>
-              <Text style={[styles.infoBody, { color: theme.text }]}>• <Text style={[styles.boldText, { color: theme.accentGold }]}>{doorTimes.generalTime}</Text> – General Public doors open across Tech CU Arena access channels.</Text>
-              <Text style={[styles.infoBody, { color: theme.text }]}>• <Text style={[styles.boldText, { color: theme.accentGold }]}>Warm-ups</Text> – Glass lines crowd exactly 25 minutes prior to initial puck drop.</Text>
+              <Text style={[styles.infoTitle, { color: theme.accentGold }]}>🕒 Gameday Entry & Gate Times</Text>
+              <Text style={[styles.infoBody, { color: theme.text }]}>
+                • <Text style={[styles.boldText, { color: theme.accentGold }]}>{doorTimes.memberTime}</Text> – Co-Branded Card Holders & Season Ticket Members early gate entry opens.
+              </Text>
+              <Text style={[styles.infoBody, { color: theme.text }]}>
+                • <Text style={[styles.boldText, { color: theme.accentGold }]}>{doorTimes.generalTime}</Text> – General Public doors open across Tech CU Arena access channels.
+              </Text>
+              <Text style={[styles.infoBody, { color: theme.text }]}>
+                • <Text style={[styles.boldText, { color: theme.accentGold }]}>Puck Drop</Text> – Scheduled for <Text style={[styles.boldText, { color: theme.accentOrange }]}>{formatGameTimeDisplay(nextGame?.game_time)}</Text> vs {nextGame?.opponent || 'Opponent'}.
+              </Text>
             </View>
+
+            {/* 2. Warm-Up Viewing Zones */}
             <View style={[styles.infoBox, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}>
-              <Text style={[styles.infoTitle, { color: theme.accentGold }]}>🎁 Section 108 Operations & Promos</Text>
-              <Text style={[styles.infoBody, { color: theme.text }]}>• Towel, promotional schedules, and banner distribution setups are live at the main booster table.</Text>
-              <Text style={[styles.infoBody, { color: theme.text }]}>• Stick around post-game for scheduled team events, jersey distributions, or player handshakes.</Text>
+              <Text style={[styles.infoTitle, { color: theme.accentGold }]}>🏒 Player Warm-Ups & Glass Access</Text>
+              <Text style={[styles.infoBody, { color: theme.text }]}>
+                • <Text style={[styles.boldText, { color: theme.accentGold }]}>Barracuda Warm-Up Zone:</Text> Home players warm up between <Text style={[styles.boldText, { color: theme.accentOrange }]}>Sections 106 – 110</Text> for the best close-up views!
+              </Text>
+              <Text style={[styles.infoBody, { color: theme.text }]}>
+                • <Text style={[styles.boldText, { color: theme.accentGold }]}>Opponent Warm-Up Zone:</Text> Opponents warm up on the opposite end between <Text style={[styles.boldText, { color: theme.text }]}>Sections 102 – 114</Text>.
+              </Text>
+              <Text style={[styles.infoBody, { color: theme.subText }]}>
+                • <Text style={[styles.boldText, { color: theme.accentGold }]}>Timing:</Text> The glass line crowds exactly 25 minutes prior to initial puck drop. Fans of all ages are welcome down at the glass during warm-ups.
+              </Text>
+            </View>
+
+            {/* 3. Front Office Theme & Giveaways */}
+            {(nextGame?.theme_night || nextGame?.promo) && (
+              <View style={[styles.infoBox, { backgroundColor: theme.subCardBg, borderColor: theme.accentOrange }]}>
+                <View style={styles.foHeaderRow}>
+                  <Text style={[styles.infoTitle, { color: theme.accentGold }]}>🎟️ Theme Night & Arena Giveaways</Text>
+                  <View style={[styles.foBadge, { backgroundColor: theme.accentOrange }]}>
+                    <Text style={styles.foBadgeText}>SAN JOSE BARRACUDA FRONT OFFICE</Text>
+                  </View>
+                </View>
+                {nextGame.theme_night && (
+                  <Text style={[styles.infoBody, { color: theme.text, marginTop: 4 }]}>
+                    • <Text style={[styles.boldText, { color: theme.accentGold }]}>Theme:</Text> {nextGame.theme_night}
+                  </Text>
+                )}
+                {nextGame.promo && (
+                  <Text style={[styles.infoBody, { color: theme.text }]}>
+                    • <Text style={[styles.boldText, { color: theme.accentGold }]}>Giveaway Promo:</Text> {nextGame.promo}
+                  </Text>
+                )}
+                <Text style={[styles.disclaimerText, { color: theme.subText }]}>
+                  * Note: All official arena giveaways, gate distributions, and theme night activations are organized independently by the San Jose Barracuda Front Office. Supplies are limited to designated ticket holders or while supplies last.
+                </Text>
+              </View>
+            )}
+
+            {/* 4. Supporter Events Active for this Game (From supporter_events) */}
+            {matchedEvents.length > 0 && (
+              <View style={[styles.infoBox, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}>
+                <Text style={[styles.infoTitle, { color: theme.accentGold }]}>🪸 SJ Battery Pack Gameday Events</Text>
+                {matchedEvents.map((evt) => (
+                  <View key={evt.id} style={[styles.matchedEventCard, { borderLeftColor: theme.accentOrange }]}>
+                    <View style={styles.matchedEventTop}>
+                      <Text style={[styles.matchedEventBadge, { color: theme.accentGold }]}>
+                        {evt.icon} {evt.badge}
+                      </Text>
+                    </View>
+                    <View style={styles.matchedEventTimeRow}>
+                      <Text style={[styles.matchedEventTime, { color: theme.accentOrange }]}>
+                        🕒 {evt.event_time}
+                      </Text>
+                    </View>
+                    <Text style={[styles.matchedEventLoc, { color: theme.subText }]}>📍 {evt.location}</Text>
+                    <Text style={[styles.matchedEventTitle, { color: theme.text }]}>{evt.title}</Text>
+                    <Text style={[styles.matchedEventDesc, { color: theme.text }]}>{evt.description}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {/* 5. Dynamic SJ Battery Pack Operations & Traditions */}
+            <View style={[styles.infoBox, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}>
+              <Text style={[styles.infoTitle, { color: theme.accentGold }]}>🥁 Sj Battery Pack Operations & Traditions</Text>
+              
+              {tablingEvent ? (
+                <Text style={[styles.infoBody, { color: theme.text }]}>
+                  • <Text style={[styles.boldText, { color: theme.accentGold }]}>Booster Table Active:</Text> Stop by the SJ Battery Pack booster table {tablingEvent.location?.toLowerCase() || 'outside Section 108'} ({tablingEvent.event_time}) for free stickers, pins, and friendship bracelets!
+                </Text>
+              ) : null}
+
+              <Text style={[styles.infoBody, { color: theme.text, marginTop: tablingEvent ? 4 : 0 }]}>
+                • SJ Battery Pack Supporter chants begin as soon as the opening face off drops! Check out our chant book or suggest chants under Fan Zone!
+              </Text>
             </View>
           </View>
         );
+      }
       case 'PARKING':
         return (
           <View>
@@ -254,7 +371,7 @@ export default function HomeScreen() {
       >
         {/* Banner */}
         <View style={[styles.welcomeBanner, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}>
-          <Text style={[styles.bannerTitle, { color: theme.accentGold }]}>THE SJ BATTERY PACK</Text>
+          <Text style={[styles.bannerTitle, { color: theme.accentGold }]}>SJ BATTERY PACK</Text>
           <Text style={[styles.bannerSubtitle, { color: theme.text }]}>The Loudest Supporter Group in the AHL 🪸</Text>
         </View>
 
@@ -358,14 +475,14 @@ export default function HomeScreen() {
             <Text style={[styles.gridButtonText, { color: theme.text }]}>👕 Swag Store</Text>
           </TouchableOpacity>
           
+          {/* ✅ Fixed text padding/sizing for Fan Gallery */}
           <TouchableOpacity 
             style={[styles.gridButton, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]} 
-            onPress={() => router.push('/(drawer)/gallery')}
+            onPress={() => router.push({ pathname: '/(drawer)/fanzone', params: { tab: 'GALLERY' } })}
           >
-            <Text style={[styles.gridButtonText, { color: theme.text }]}>📸 Fan Gallery</Text>
+            <Text style={[styles.gridButtonText, { color: theme.text }]} numberOfLines={1}>📸 Fan Gallery</Text>
           </TouchableOpacity>
         </View>
-
       </ScrollView>
 
       {/* Interactive Game Day Overlay Guide Modal */}
@@ -378,14 +495,26 @@ export default function HomeScreen() {
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContainer, { backgroundColor: theme.cardBg, borderColor: theme.accentGold }]}>
             
-            <Text style={[styles.modalHeader, { color: theme.accentGold }]}>🏟️ REEF KNOW BEFORE YOU GO</Text>
-            <Text style={[styles.modalSub, { color: theme.subText }]}>
-              {nextGame 
-                ? (nextGame.home_away === 'HOME'
-                    ? `San Jose Barracuda vs ${nextGame.opponent}`
-                    : `${nextGame.opponent} vs San Jose Barracuda`)
-                : 'Tech CU Arena Gameday Information'}
-            </Text>
+            {/* Modal Header with Close 'X' Button */}
+            <View style={styles.modalTopHeaderBar}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.modalHeader, { color: theme.accentGold }]}>🏟️ REEF KNOW BEFORE YOU GO</Text>
+                <Text style={[styles.modalSub, { color: theme.subText }]}>
+                  {nextGame 
+                    ? (nextGame.home_away === 'HOME'
+                        ? `San Jose Barracuda vs ${nextGame.opponent}`
+                        : `${nextGame.opponent} vs San Jose Barracuda`)
+                    : 'Tech CU Arena Gameday Information'}
+                </Text>
+              </View>
+              <TouchableOpacity 
+                onPress={() => setInfoModalVisible(false)}
+                style={styles.modalCloseIconBtn}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Text style={[styles.modalCloseIconText, { color: theme.accentGold }]}>✕</Text>
+              </TouchableOpacity>
+            </View>
             
             <View style={[styles.tabBarRow, { borderColor: theme.borderColor }]}>
               <ScrollView horizontal={true} showsHorizontalScrollIndicator={false}>
@@ -456,16 +585,20 @@ const styles = StyleSheet.create({
   blockTitleCentered: { fontSize: 14, fontWeight: '900', marginVertical: 10, textAlign: 'center', letterSpacing: 1 },
   gridRow: { flexDirection: 'row', justifyContent: 'space-between' },
   gridButton: { width: '48%', padding: 14, borderRadius: 12, alignItems: 'center', borderWidth: 1 },
-  gridButtonText: { fontSize: 14, fontWeight: '900' },
+  gridButtonText: { fontSize: 13, fontWeight: '900' },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'center', alignItems: 'center', paddingTop: 40, paddingBottom: 20 },
   modalContainer: { width: '92%', height: '85%', borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
-  modalHeader: { fontSize: 18, fontWeight: '900', textAlign: 'center', marginTop: 16, marginBottom: 2 },
-  modalSub: { fontSize: 12, textAlign: 'center', marginBottom: 12, fontWeight: '700', paddingHorizontal: 10 },
+  
+  modalTopHeaderBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 },
+  modalHeader: { fontSize: 16, fontWeight: '900', textAlign: 'left', letterSpacing: 0.5 },
+  modalSub: { fontSize: 11, textAlign: 'left', fontWeight: '700', marginTop: 2 },
+  modalCloseIconBtn: { padding: 4 },
+  modalCloseIconText: { fontSize: 20, fontWeight: '900' },
   
   tabBarRow: { flexDirection: 'row', borderBottomWidth: 1, paddingHorizontal: 8, paddingBottom: 6 },
-  tabItemButton: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 16, marginRight: 6, borderWidth: 1 },
-  tabItemText: { fontSize: 12, fontWeight: '700' },
+  tabItemButton: { paddingVertical: 6, paddingHorizontal: 8, borderRadius: 16, marginRight: 6, borderWidth: 1 },
+  tabItemText: { fontSize: 11, fontWeight: '700' },
 
   modalScrollView: { flex: 1 },
   modalScrollPadding: { padding: 16, paddingBottom: 30 },
@@ -474,6 +607,20 @@ const styles = StyleSheet.create({
   infoTitle: { fontSize: 14, fontWeight: 'bold', marginBottom: 4 },
   infoBody: { fontSize: 13, lineHeight: 18, fontWeight: '500', marginBottom: 4 },
   boldText: { fontWeight: 'bold' },
+
+  foHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginBottom: 4 },
+  foBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  foBadgeText: { color: '#FFFFFF', fontSize: 9, fontWeight: '900' },
+  disclaimerText: { fontSize: 11, fontStyle: 'italic', marginTop: 6, lineHeight: 15 },
+
+  matchedEventCard: { borderLeftWidth: 3, paddingLeft: 10, marginVertical: 6 },
+  matchedEventTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  matchedEventBadge: { fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
+  matchedEventTimeRow: { marginTop: 2, marginBottom: 2 },
+  matchedEventTime: { fontSize: 12, fontWeight: '800' },
+  matchedEventTitle: { fontSize: 16, fontWeight: '900', marginTop: 2, marginBottom: 4 },
+  matchedEventLoc: { fontSize: 11, fontWeight: '700', marginBottom: 4 },
+  matchedEventDesc: { fontSize: 12, lineHeight: 17, fontWeight: '500' },
 
   actionLinkButton: { padding: 10, borderRadius: 8, alignItems: 'center', marginTop: 4, marginBottom: 10 },
   actionLinkText: { color: '#FFFFFF', fontSize: 13, fontWeight: 'bold' },

@@ -13,9 +13,10 @@
       "backgroundColor": "#001E22"
     },
     "ios": {
+      "deploymentTarget": "16.4",
       "supportsTablet": true,
       "bundleIdentifier": "com.sjbatterypack.myapp",
-      "buildNumber": "2.1.2",
+      "buildNumber": "2.1.5",
       "usesAppleSignIn": true,
       "icon": "./assets/images/icon.png",
       "splash": {
@@ -25,6 +26,8 @@
       },
       "infoPlist": {
         "NSCameraUsageDescription": "SJ Battery Pack needs camera access to scan gameday QR codes and collect digital win passport stamps.",
+        "NSPhotoLibraryUsageDescription": "SJ Battery Pack needs access to your photo library to share high-resolution photos in the Reef Fan Gallery.",
+        "NSPhotoLibraryAddUsageDescription": "SJ Battery Pack needs permission to save high-resolution fan photos directly to your camera roll.",
         "CFBundleURLTypes": [
           {
             "CFBundleURLSchemes": [
@@ -36,13 +39,18 @@
     },
     "android": {
       "package": "com.sjbatterypack.myapp",
-      "versionCode": 47,
-      "softwareKeyboardLayoutMode": "resize",
+      "versionCode": 48,
+      "softwareKeyboardLayoutMode": "pan",
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-foreground.png",
         "backgroundColor": "#001E22"
-      }
+      },
+      "permissions": [
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_IMAGES"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -75,7 +83,20 @@
         {
           "photosPermission": "Allow SJ Battery Pack access to share gameday photos in the Fan Gallery."
         }
-      ]
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow SJ Battery Pack access to view your photo gallery.",
+          "savePhotosPermission": "Allow SJ Battery Pack to save high-resolution photos to your camera roll.",
+          "isAccessMediaLocationEnabled": false
+        }
+      ],
+      "expo-image",
+      "expo-status-bar",
+      "expo-audio",
+      "expo-video",
+      "expo-build-properties"
     ],
     "experiments": {
       "typedRoutes": true

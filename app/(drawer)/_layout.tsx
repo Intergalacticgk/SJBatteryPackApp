@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Switch, StatusBar } from 'react-native';
 import { Drawer } from 'expo-router/drawer';
-import { DrawerContentScrollView, DrawerItemList } from '@react-navigation/drawer';
+import { DrawerContentScrollView, DrawerItemList } from 'expo-router/drawer';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemeProvider, useAppTheme } from '../../context/ThemeContext';
@@ -20,7 +20,7 @@ function CustomDrawerContent(props: any) {
       >
         <View style={[styles.drawerHeader, { borderBottomColor: theme.borderColor }]}>
           <Text style={[styles.drawerHeaderTitle, { color: theme.accentGold }]}>🪸 SJ BATTERY PACK</Text>
-          <Text style={[styles.drawerHeaderSub, { color: theme.subText }]}>Section 108 • Official Supporters</Text>
+          <Text style={[styles.drawerHeaderSub, { color: theme.subText }]}>Official Supporter Group</Text>
         </View>
 
         <DrawerItemList {...props} />
@@ -77,10 +77,6 @@ function DrawerNavigation() {
           drawerItemStyle: { borderRadius: 10, marginVertical: 3, paddingHorizontal: 6 },
         }}
       >
-        {/* =========================================
-            VISIBLE DRAWER SCREENS (7 Clean Items)
-           ========================================= */}
-
         {/* 1. 🏠 Home */}
         <Drawer.Screen 
           name="index" 
@@ -90,16 +86,25 @@ function DrawerNavigation() {
           }} 
         />
 
-        {/* 2. 📅 Schedule & Meetups */}
+        {/* 2. 📅 Schedule */}
         <Drawer.Screen 
           name="schedule" 
           options={{ 
-            drawerLabel: 'Schedule & Events', 
+            drawerLabel: 'Schedule', 
             title: 'Barracuda Schedule' 
           }} 
         />
 
-        {/* 3. 🏒 Current Roster */}
+        {/* 3. 🎟️ Events & Meetups */}
+        <Drawer.Screen 
+          name="events" 
+          options={{ 
+            drawerLabel: 'Events & Meetups', 
+            title: 'Supporter Events' 
+          }} 
+        />
+
+        {/* 4. 🏒 Current Roster */}
         <Drawer.Screen 
           name="roster" 
           options={{ 
@@ -108,7 +113,7 @@ function DrawerNavigation() {
           }} 
         />
 
-        {/* 4. 🌟 Prospects Tracker */}
+        {/* 5. 🌟 Prospects Tracker */}
         <Drawer.Screen 
           name="prospects" 
           options={{ 
@@ -117,16 +122,16 @@ function DrawerNavigation() {
           }} 
         />
 
-        {/* 5. ⚡️ Fan Zone Hub (Chants, Gallery, Chat) */}
+        {/* 6. ⚡️ Fan Zone Hub */}
         <Drawer.Screen 
           name="fanzone" 
           options={{ 
             drawerLabel: 'Fan Zone', 
-            title: 'Section 108 Fan Zone' 
+            title: 'Supporter Group Fan Zone' 
           }} 
         />
 
-        {/* 6. 🪸 The Pack Gives Back (Donations & Non-Profit) */}
+        {/* 7. 🪸 The Pack Gives Back */}
         <Drawer.Screen 
           name="donations" 
           options={{ 
@@ -135,7 +140,7 @@ function DrawerNavigation() {
           }} 
         />
 
-        {/* 7. 👤 Account */}
+        {/* 8. 👤 Account */}
         <Drawer.Screen 
           name="info" 
           options={{ 
@@ -144,11 +149,7 @@ function DrawerNavigation() {
           }} 
         />
 
-        {/* =========================================
-            HIDDEN REGISTERED SCREENS (No 404s)
-           ========================================= */}
-
-        {/* Digital Passport */}
+        {/* HIDDEN ROUTES */}
         <Drawer.Screen 
           name="passport" 
           options={{ 
@@ -156,17 +157,6 @@ function DrawerNavigation() {
             title: 'Digital Passport' 
           }} 
         />
-
-        {/* Events */}
-        <Drawer.Screen 
-          name="events" 
-          options={{ 
-            drawerItemStyle: { display: 'none' }, 
-            title: 'Supporter Events' 
-          }} 
-        />
-
-        {/* Standalone Chat (Can still be launched via router.push) */}
         <Drawer.Screen 
           name="chat" 
           options={{ 
@@ -174,8 +164,6 @@ function DrawerNavigation() {
             title: 'Supporter Chat' 
           }} 
         />
-
-        {/* Standalone Gallery */}
         <Drawer.Screen 
           name="gallery" 
           options={{ 
@@ -183,8 +171,6 @@ function DrawerNavigation() {
             title: 'Reef Fan Gallery' 
           }} 
         />
-
-        {/* Polls */}
         <Drawer.Screen 
           name="polls" 
           options={{ 

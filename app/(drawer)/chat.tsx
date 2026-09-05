@@ -8,16 +8,18 @@ import {
   FlatList,
   TextInput,
   ActivityIndicator,
-  KeyboardAvoidingView,
   Platform,
   StatusBar,
   Alert,
-  Image,
   Modal,
   Dimensions,
+  Keyboard,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useRouter, useFocusEffect } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system/legacy';
+import { decode } from 'base64-arraybuffer';
 import { supabase } from '../../supabase';
 import { useAppTheme } from '../../context/ThemeContext';
 
@@ -40,10 +42,20 @@ interface ChatMessage {
 }
 
 const ROOMS = [
-  { id: 'general', title: '🦈 Gameday & 108', desc: 'Live reactions from Tech CU Arena' },
+  { id: 'general', title: 'General', desc: 'Live reactions from Tech CU Arena' },
   { id: 'watch-parties', title: '🍻 Watch Parties', desc: 'Away game meetups & bar spots' },
   { id: 'merch', title: '🎟️ Merch & Tickets', desc: 'Ticket exchanges and fan gear' },
   { id: 'prospects', title: '⭐ Prospect Talk', desc: 'Sharks & Cuda prospect development' },
+];
+
+const GIPHY_QUICK_TAGS = [
+  'San Jose Barracuda',
+  'San Jose Sharks',
+  'Frenzy',
+  'Goal',
+  'Celley',
+  'Hockey Fight',
+  'Reef',
 ];
 
 const FALLBACK_GIFS = [
@@ -69,14 +81,35 @@ export default function ChatScreen() {
   const [inputText, setInputText] = useState('');
   const [sending, setSending] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   // Media & Giphy State
   const [gifModalVisible, setGifModalVisible] = useState(false);
-  const [gifSearchText, setGifSearchText] = useState('san jose sharks');
+  const [gifSearchText, setGifSearchText] = useState('San Jose Barracuda');
   const [gifResults, setGifResults] = useState<any[]>([]);
   const [gifLoading, setGifLoading] = useState(false);
 
   const flatListRef = useRef<FlatList>(null);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const onShow = Keyboard.addListener(showEvent, (e) => {
+      const extraOffset = Platform.OS === 'android' ? 32 : 0;
+      setKeyboardHeight(e.endCoordinates.height + extraOffset);
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+    });
+
+    const onHide = Keyboard.addListener(hideEvent, () => {
+      setKeyboardHeight(0);
+    });
+
+    return () => {
+      onShow.remove();
+      onHide.remove();
+    };
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -252,19 +285,21 @@ export default function ChatScreen() {
   const uploadAndDispatchMedia = async (localUri: string, mediaType: 'IMAGE' | 'GIF') => {
     try {
       setSending(true);
-      const ext = localUri.split('.').pop() || 'jpg';
+      const ext = localUri.split('.').pop()?.toLowerCase() || 'jpg';
       const fileName = `chat_${session.user.id}_${Date.now()}.${ext}`;
+      const contentType = ext === 'png' ? 'image/png' : 'image/jpeg';
 
-      const formData = new FormData();
-      formData.append('file', {
-        uri: localUri,
-        name: fileName,
-        type: `image/${ext}`,
-      } as any);
+      const base64Data = await FileSystem.readAsStringAsync(localUri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      const arrayBuffer = decode(base64Data);
 
       const { error: uploadError } = await supabase.storage
         .from('chat-media')
-        .upload(fileName, formData);
+        .upload(fileName, arrayBuffer, {
+          contentType,
+          upsert: true,
+        });
 
       if (uploadError) throw uploadError;
 
@@ -295,7 +330,7 @@ export default function ChatScreen() {
     }
   };
 
-  const searchGiphy = async (query = 'san jose sharks') => {
+  const searchGiphy = async (query = 'San Jose Barracuda') => {
     setGifLoading(true);
     try {
       const trimmed = query.trim();
@@ -373,7 +408,7 @@ export default function ChatScreen() {
         <View style={styles.loggedOutContainer}>
           <View style={[styles.loggedOutCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
             <Text style={styles.loggedOutIcon}>🔒</Text>
-            <Text style={[styles.loggedOutTitle, { color: theme.accentGold }]}>SECTION 108 CHAT</Text>
+            <Text style={[styles.loggedOutTitle, { color: theme.accentGold }]}>SJ BATTERY PACK CHAT</Text>
             <Text style={[styles.loggedOutSub, { color: theme.subText }]}>
               Join the real-time supporter rooms, share gameday reactions, photos, and GIFs with fellow Barracuda boosters.
             </Text>
@@ -393,12 +428,7 @@ export default function ChatScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.cardBg} />
 
-      {/* 🚀 Single unified KeyboardAvoidingView that wraps both feed and toolbar */}
-      <KeyboardAvoidingView
-        style={styles.flexContainer}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 95 : 0}
-      >
+      <View style={[styles.flexContainer, { paddingBottom: keyboardHeight }]}>
         {/* Room Selector Tabs */}
         <View style={[styles.roomsContainer, { backgroundColor: theme.cardBg, borderBottomColor: theme.borderColor }]}>
           <FlatList
@@ -485,7 +515,13 @@ export default function ChatScreen() {
                     ]}
                   >
                     {item.media_url ? (
-                      <Image source={{ uri: item.media_url }} style={styles.bubbleMedia} resizeMode="cover" />
+                      <Image
+                        source={{ uri: item.media_url }}
+                        contentFit="cover"
+                        transition={200}
+                        cachePolicy="memory-disk"
+                        style={styles.bubbleMedia}
+                      />
                     ) : (
                       <Text style={[styles.messageText, { color: isMine ? '#FFFFFF' : theme.text }]}>
                         {displayMsg}
@@ -501,7 +537,7 @@ export default function ChatScreen() {
           />
         )}
 
-        {/* Message Input Toolbar (Stays directly above the keyboard) */}
+        {/* Message Input Toolbar */}
         <View style={[styles.inputBar, { backgroundColor: theme.cardBg, borderTopColor: theme.borderColor }]}>
           <TouchableOpacity style={[styles.iconButton, { backgroundColor: theme.subCardBg }]} onPress={handlePickAndSendImage}>
             <Text style={{ fontSize: 18 }}>📎</Text>
@@ -534,7 +570,7 @@ export default function ChatScreen() {
             {sending ? <ActivityIndicator size="small" color="#001E22" /> : <Text style={styles.sendButtonText}>➔</Text>}
           </TouchableOpacity>
         </View>
-      </KeyboardAvoidingView>
+      </View>
 
       {/* GIPHY Selection Modal */}
       <Modal visible={gifModalVisible} animationType="slide" transparent onRequestClose={() => setGifModalVisible(false)}>
@@ -548,16 +584,34 @@ export default function ChatScreen() {
             </View>
 
             <View style={styles.quickTagsRow}>
-              {['San Jose Sharks', 'Goal', 'Celley', 'Hockey Fight', 'Reef'].map((tag) => (
+              {GIPHY_QUICK_TAGS.map((tag) => (
                 <TouchableOpacity
                   key={tag}
-                  style={[styles.quickTagPill, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}
+                  style={[
+                    styles.quickTagPill,
+                    { backgroundColor: theme.subCardBg, borderColor: theme.borderColor },
+                    gifSearchText.toLowerCase() === tag.toLowerCase() && {
+                      backgroundColor: theme.accentGold,
+                      borderColor: theme.accentGold,
+                    },
+                  ]}
                   onPress={() => {
                     setGifSearchText(tag);
                     searchGiphy(tag);
                   }}
                 >
-                  <Text style={[styles.quickTagText, { color: theme.text }]}>{tag}</Text>
+                  <Text
+                    style={[
+                      styles.quickTagText,
+                      { color: theme.text },
+                      gifSearchText.toLowerCase() === tag.toLowerCase() && {
+                        color: '#001417',
+                        fontWeight: '900',
+                      },
+                    ]}
+                  >
+                    {tag}
+                  </Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -594,7 +648,13 @@ export default function ChatScreen() {
                       activeOpacity={0.8}
                       onPress={() => handleSelectGif(gifUrl)}
                     >
-                      <Image source={{ uri: gifUrl }} style={styles.gifThumbnail} resizeMode="cover" />
+                      <Image
+                        source={{ uri: gifUrl }}
+                        contentFit="cover"
+                        transition={150}
+                        cachePolicy="memory-disk"
+                        style={styles.gifThumbnail}
+                      />
                     </TouchableOpacity>
                   );
                 }}
@@ -629,6 +689,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingHorizontal: 8,
     paddingVertical: 8,
+    paddingBottom: Platform.OS === 'android' ? 16 : 8,
     borderTopWidth: 1,
     alignItems: 'center',
     gap: 6,

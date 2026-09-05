@@ -399,7 +399,7 @@ export default function AccountScreen() {
           <>
             <View style={[styles.header, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}>
               <Text style={[styles.headerTitle, { color: theme.accentGold }]}>MY LOCKER ROOM</Text>
-              <Text style={[styles.headerSub, { color: theme.subText }]}>Section 108 Supporter Profile 🪸</Text>
+              <Text style={[styles.headerSub, { color: theme.subText }]}>Personal Profile 🪸</Text>
             </View>
 
             {/* 1. Basic Information Accordion */}
@@ -611,7 +611,7 @@ export default function AccountScreen() {
         ) : (
           /* ======================== 🔐 LOGGED OUT AUTH VIEW ======================== */
           <View style={[styles.authCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-            <Text style={[styles.authHeader, { color: theme.accentGold }]}>🦈 SECTION 108 ACCESS</Text>
+            <Text style={[styles.authHeader, { color: theme.accentGold }]}>🦈 SJ BATTERY PACK ACCESS</Text>
             <Text style={[styles.authSub, { color: theme.subText }]}>
               Sign in with your mobile number, Google, or Apple account to claim win stamps and access your supporter profile.
             </Text>

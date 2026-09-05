@@ -21,11 +21,12 @@ import { useAppTheme } from '../../context/ThemeContext';
 export interface SupporterEvent {
   id: string;
   title: string;
-  category: 'Road Trips' | 'Watch Parties' | 'Group Photos' | 'Community & Tabling';
+  category: string;
   date: string;
   time: string;
   location: string;
   badge: string;
+  icon?: string;
   description: string;
   schedule?: { time: string; detail: string }[];
   faqs?: { q: string; a: string }[];
@@ -33,316 +34,81 @@ export interface SupporterEvent {
 
 const CATEGORIES = ['All', 'Road Trips', 'Watch Parties', 'Group Photos', 'Community & Tabling'] as const;
 
-// Reusable data for Trade Nights
-const TRADE_NIGHT_SCHEDULE = [
-  { time: '1st Intermission', detail: 'Meet up outside Section 108 / The Cove to trade and connect.' },
-  { time: '2nd Intermission', detail: 'Meet up outside Section 108 / The Cove for the final trading session of the night.' },
-];
+const formatDateDisplay = (dateStr: string) => {
+  if (!dateStr || dateStr.includes('TBA') || !dateStr.includes('-')) return dateStr;
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return dateStr;
+  
+  const year = parseInt(parts[0], 10);
+  const month = parseInt(parts[1], 10) - 1;
+  const day = parseInt(parts[2], 10);
+  
+  const d = new Date(year, month, day);
+  if (isNaN(d.getTime())) return dateStr;
 
-const TRADE_NIGHT_FAQS = [
-  { q: 'What items am I allowed to bring in?', a: 'The rules that we ask fans to follow are the same rules as the arena when deciding what is allowed and not allowed to be brought in.' },
-  { q: 'Are these official San Jose Barracuda events?', a: 'No, our events are independently run and not associated with the San Jose Barracuda. If you have any questions please reach out to us via email at info@sjbatterypack.com.' },
-];
-
-const FALLBACK_EVENTS: SupporterEvent[] = [
-  // 🌈 1. COMMUNITY: SILICON VALLEY PRIDE PARADE
-  {
-    id: 'pride-2026',
-    title: 'Silicon Valley Pride Parade 2026',
-    category: 'Community & Tabling',
-    badge: 'PRIDE MARCH',
-    date: 'Sunday, August 30, 2026',
-    time: '11:00 AM – 12:30 PM (Step-Off)',
-    location: 'Downtown San Jose (Julian & Market St ➔ Plaza Park)',
-    description: 'March alongside the SJ Battery Pack, Sharks & Barracuda players, and local hockey fans through the heart of Downtown San Jose to celebrate LGBTQ+ visibility and over 50 years of progress!',
-    schedule: [
-      { time: '10:15 AM', detail: 'Supporter staging & banner assembly at Julian St & Market St' },
-      { time: '11:00 AM', detail: 'Official Parade Step-Off & March' },
-      { time: '12:30 PM', detail: 'Arrival at Plaza Park celebration, festival & live entertainment' },
-    ],
-    faqs: [
-      { q: 'Who can march with the Battery Pack?', a: 'Open to all individuals, members, friends, family, and allies who wish to celebrate and support equality.' },
-      { q: 'What should I wear?', a: 'Wear your favorite Battery Pack teal, orange, pride supporter shirts, or hockey jerseys!' },
-      { q: 'Is registration required?', a: 'Free to march with our group! Connect in the #watch-parties / community chat for staging updates.' },
-    ],
-  },
-
-  // 🃏 TRADE NIGHTS
-  {
-    id: 'trade-dec-2026',
-    title: 'Cuda Card & Prospect Trade Night',
-    category: 'Community & Tabling',
-    badge: 'TRADE NIGHT',
-    date: 'Saturday, December 5, 2026',
-    time: '1st & 2nd Intermissions',
-    location: 'Outside Section 108 / The Cove',
-    description: 'Bring your binders and top-loaders! Trade NHL, AHL, and Sharks prospect cards with fellow collectors during the intermissions.',
-    schedule: TRADE_NIGHT_SCHEDULE,
-    faqs: TRADE_NIGHT_FAQS,
-  },
-  {
-    id: 'trade-jan-2027',
-    title: 'Supporter Pin & Merch Swap',
-    category: 'Community & Tabling',
-    badge: 'TRADE NIGHT',
-    date: 'Saturday, January 23, 2027',
-    time: '1st & 2nd Intermissions',
-    location: 'Outside Section 108 / The Cove',
-    description: 'Swap enamel pins, vintage patches, custom badges, and booster collectibles with other fans!',
-    schedule: TRADE_NIGHT_SCHEDULE,
-    faqs: TRADE_NIGHT_FAQS,
-  },
-  {
-    id: 'trade-feb-2027',
-    title: 'Friendship Bracelet Night',
-    category: 'Community & Tabling',
-    badge: 'TRADE NIGHT',
-    date: 'Saturday, February 6, 2027',
-    time: '1st & 2nd Intermissions',
-    location: 'Outside Section 108 / The Cove',
-    description: 'Trade beaded player bracelets and handmade crafts with your fellow Section 108 rowdies.',
-    schedule: TRADE_NIGHT_SCHEDULE,
-    faqs: TRADE_NIGHT_FAQS,
-  },
-  {
-    id: 'trade-apr-2027',
-    title: 'Fan Appreciation Megatrade Night',
-    category: 'Community & Tabling',
-    badge: 'TRADE NIGHT',
-    date: 'Saturday, April 10, 2027',
-    time: '1st & 2nd Intermissions',
-    location: 'Outside Section 108 / The Cove',
-    description: 'Our end-of-season trade finale! Bring absolutely anything you want (cards, bracelets, pins, merch) and trade with other fans during intermissions.',
-    schedule: TRADE_NIGHT_SCHEDULE,
-    faqs: TRADE_NIGHT_FAQS,
-  },
-
-  // 🚌 2. ROAD TRIPS (AWAY INVASIONS)
-  {
-    id: 'road-gulls-2026',
-    title: 'Road Invasion: Barracuda at San Diego Gulls',
-    category: 'Road Trips',
-    badge: 'AWAY TRIP',
-    date: 'Saturday, October 24, 2026',
-    time: '7:00 PM Puck Drop',
-    location: 'Pechanga Arena • San Diego, CA',
-    description: 'Our first major away invasion of the season! Join the traveling Battery Pack contingent down south to take over Pechanga Arena against the Gulls.',
-    schedule: [
-      { time: '4:30 PM', detail: 'Pre-game supporter tailgate & meetup outside arena' },
-      { time: '6:00 PM', detail: 'Doors open & march into Section 108 away booster block' },
-      { time: '7:00 PM', detail: 'Puck drop: Barracuda vs. Gulls' },
-    ],
-    faqs: [
-      { q: 'How do I sit with the Battery Pack away section?', a: 'Group discount away block links are shared directly in the Merch & Tickets chat room.' },
-    ],
-  },
-  {
-    id: 'road-bako-2026',
-    title: 'Road Trip: Barracuda at Bakersfield Condors',
-    category: 'Road Trips',
-    badge: 'AWAY TRIP',
-    date: 'Saturday, December 19, 2026',
-    time: '7:00 PM Puck Drop',
-    location: 'Mechanics Bank Arena • Bakersfield, CA',
-    description: 'Holiday road battle! Pack the cars and travel down Highway 99 to rally the Cuda against the division rival Condors.',
-    schedule: [
-      { time: '5:00 PM', detail: 'Pre-game dinner and rally meetup' },
-      { time: '6:15 PM', detail: 'Arena entry & drum setup' },
-      { time: '7:00 PM', detail: 'Puck drop: Barracuda vs. Condors' },
-    ],
-  },
-  {
-    id: 'road-reign-2027',
-    title: 'Road Trip: Barracuda at Ontario Reign',
-    category: 'Road Trips',
-    badge: 'AWAY TRIP',
-    date: 'Saturday, January 30, 2027',
-    time: '6:00 PM Puck Drop',
-    location: 'Toyota Arena • Ontario, CA',
-    description: 'Southern California invasion part 2! Bringing northern California noise to the Inland Empire against the Kings AHL affiliate.',
-    schedule: [
-      { time: '4:00 PM', detail: 'SoCal supporter meetup' },
-      { time: '5:15 PM', detail: 'Toyota Arena entry' },
-      { time: '6:00 PM', detail: 'Puck drop: Barracuda vs. Reign' },
-    ],
-  },
-  {
-    id: 'road-henderson-2027',
-    title: 'Vegas Weekend: Barracuda at Henderson Silver Knights',
-    category: 'Road Trips',
-    badge: 'WEEKEND INVASION',
-    date: 'Saturday, February 13, 2027',
-    time: '7:00 PM Puck Drop',
-    location: 'The Dollar Loan Center (Lee\'s Family Forum) • Henderson, NV',
-    description: 'Our annual Nevada road weekend! Catch the Cuda taking on the Silver Knights, followed by member group dinners and Vegas weekend activities.',
-    schedule: [
-      { time: '4:30 PM', detail: 'Pre-game Henderson meetup & drinks' },
-      { time: '6:00 PM', detail: 'Arena march-in' },
-      { time: '7:00 PM', detail: 'Puck drop: Barracuda vs. Henderson' },
-    ],
-  },
-
-  // 📸 3. ON-ICE & GROUP PHOTOS
-  {
-    id: 'photo-oct-2026',
-    title: 'Opening Month On-Ice Group Photo',
-    category: 'Group Photos',
-    badge: 'POST-GAME ON ICE',
-    date: 'October 2026 (Date TBA)',
-    time: 'Immediately Following Final Horn',
-    location: 'Tech CU Arena Rink',
-    description: 'Step onto the ice with fellow Battery Pack boosters for our official season kickoff group photo!',
-    schedule: [
-      { time: '3rd Period 5:00 min', detail: 'Meet group photo coordinator at top of Section 108' },
-      { time: 'Post-Game', detail: 'Escorted down tunnel to Tech CU Arena ice surface' },
-    ],
-    faqs: [
-      { q: 'Are special shoes required?', a: 'Flat-soled sneakers or closed-toe athletic shoes only (no heels/ice skates).' },
-      { q: 'Can children participate?', a: 'Yes! All Section 108 members and family in attendance are welcome.' },
-    ],
-  },
-  {
-    id: 'photo-dec-2026',
-    title: 'Holiday Season On-Ice Photo',
-    category: 'Group Photos',
-    badge: 'POST-GAME ON ICE',
-    date: 'December 2026 (Date TBA)',
-    time: 'Post-Game',
-    location: 'Tech CU Arena Rink',
-    description: 'Celebrate the holidays on the ice with the Battery Pack! Bring your ugly sweaters and festive scarves.',
-  },
-  {
-    id: 'photo-feb-2027',
-    title: 'Mid-Season Banner On-Ice Photo',
-    category: 'Group Photos',
-    badge: 'POST-GAME ON ICE',
-    date: 'Tuesday, February 16, 2027',
-    time: 'Post-Game',
-    location: 'Tech CU Arena Rink',
-    description: 'Join the pack on the ice surface for our mid-season supporter banner and scarf showcase photo.',
-  },
-  {
-    id: 'photo-apr-2027',
-    title: 'Fan Appreciation & Playoff Push Photo',
-    category: 'Group Photos',
-    badge: 'POST-GAME ON ICE',
-    date: 'April 2027 (Date TBA)',
-    time: 'Post-Game',
-    location: 'Tech CU Arena Rink',
-    description: 'Our final regular season group photo on the ice to commemorate the 2026-27 campaign and gear up for the Calder Cup Playoffs.',
-  },
-
-  // 🍻 4. AWAY GAME WATCH PARTIES
-  {
-    id: 'watch-oct-2026',
-    title: 'Season Opener Away Watch Party',
-    category: 'Watch Parties',
-    badge: 'WATCH PARTY',
-    date: 'Friday, October 23, 2026',
-    time: '6:30 PM Pre-Show • 7:00 PM Puck Drop',
-    location: 'Local Partner Bar (Downtown SJ / Willow Glen TBA)',
-    description: 'Cheer on the Barracuda with sound-on broadcast, raffle prizes, and Section 108 chant energy while the team is on the road!',
-  },
-  {
-    id: 'watch-nov-2026',
-    title: 'November Away Watch Party',
-    category: 'Watch Parties',
-    badge: 'WATCH PARTY',
-    date: 'Saturday, November 21, 2026',
-    time: 'Puck Drop TBA',
-    location: 'Local Partner Bar TBA',
-    description: 'Gather with fellow boosters for a Saturday night road broadcast watch party.',
-  },
-  {
-    id: 'watch-dec-2026',
-    title: 'December Road Watch Party',
-    category: 'Watch Parties',
-    badge: 'WATCH PARTY',
-    date: 'Saturday, December 12, 2026',
-    time: 'Puck Drop TBA',
-    location: 'Local Partner Bar TBA',
-    description: 'Holiday road watch party with member food & beverage specials.',
-  },
-  {
-    id: 'watch-jan-2027',
-    title: 'New Year Away Watch Party',
-    category: 'Watch Parties',
-    badge: 'WATCH PARTY',
-    date: 'Saturday, January 9, 2027',
-    time: 'Puck Drop TBA',
-    location: 'Local Partner Bar TBA',
-    description: 'Kick off the new calendar year rallying the Cuda from home.',
-  },
-  {
-    id: 'watch-feb-2027',
-    title: 'February Road Watch Party',
-    category: 'Watch Parties',
-    badge: 'WATCH PARTY',
-    date: 'Saturday, February 20, 2027',
-    time: 'Puck Drop TBA',
-    location: 'Local Partner Bar TBA',
-    description: 'Mid-season divisional clash watch party with fellow Section 108 fans.',
-  },
-  {
-    id: 'watch-mar-2027',
-    title: 'March Road Watch Party',
-    category: 'Watch Parties',
-    badge: 'WATCH PARTY',
-    date: 'Saturday, March 6, 2027',
-    time: 'Puck Drop TBA',
-    location: 'Local Partner Bar TBA',
-    description: 'Spring stretch run watch party as the Barracuda battle for postseason seeding.',
-  },
-  {
-    id: 'watch-apr-2027',
-    title: 'Final Regular Season Watch Party',
-    category: 'Watch Parties',
-    badge: 'WATCH PARTY',
-    date: 'Sunday, April 4, 2027',
-    time: 'Puck Drop TBA',
-    location: 'Local Partner Bar TBA',
-    description: 'Season finale road watch party before playoff hockey arrives!',
-  },
-];
+  return d.toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+};
 
 export default function EventsScreen() {
   const { theme } = useAppTheme();
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [expandedEventId, setExpandedEventId] = useState<string | null>(null);
-  const [events, setEvents] = useState<SupporterEvent[]>(FALLBACK_EVENTS);
+  const [events, setEvents] = useState<SupporterEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Intake Form State
+  // Road Trip Intake Form State (Default partySize to empty string)
   const [formVisible, setFormVisible] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [selectedRoadTrip, setSelectedRoadTrip] = useState<SupporterEvent | null>(null);
-  const [formData, setFormData] = useState({ name: '', email: '', partySize: '1', hotelInterest: false });
+  const [formData, setFormData] = useState({ name: '', email: '', partySize: '', hotelInterest: false });
+
+  const safeParseJSON = (data: any) => {
+    if (!data) return undefined;
+    if (typeof data === 'object') return data;
+    try {
+      return JSON.parse(data);
+    } catch {
+      return undefined;
+    }
+  };
 
   const fetchEvents = async () => {
     try {
+      setLoading(true);
       const { data, error } = await supabase
         .from('supporter_events')
         .select('*')
         .order('event_date', { ascending: true });
 
-      if (!error && Array.isArray(data) && data.length > 0) {
+      if (error) {
+        console.warn('Supabase supporter_events error:', error.message);
+        return;
+      }
+
+      if (Array.isArray(data) && data.length > 0) {
         const mapped: SupporterEvent[] = data.map((item: any) => ({
           id: String(item.id),
-          title: item.title,
+          title: item.title || 'Supporter Event',
           category: item.category || 'Community & Tabling',
           badge: item.badge || 'EVENT',
-          date: item.date || item.event_date,
-          time: item.time || item.event_time,
-          location: item.location,
+          icon: item.icon || '🏒',
+          date: item.event_date || item.date || 'Date TBA',
+          time: item.event_time || item.time || 'Time TBA',
+          location: item.location || 'Tech CU Arena',
           description: item.description || '',
-          schedule: item.schedule || undefined,
-          faqs: item.faqs || undefined,
+          schedule: safeParseJSON(item.schedule),
+          faqs: safeParseJSON(item.faqs),
         }));
         setEvents(mapped);
       }
     } catch (err) {
-      console.warn('Supabase supporter_events fetch error:', err);
+      console.warn('Supporter events query error:', err);
     } finally {
       setLoading(false);
     }
@@ -355,13 +121,30 @@ export default function EventsScreen() {
   }, []);
 
   useEffect(() => {
-    setLoading(true);
     fetchEvents();
   }, []);
 
-  const filteredEvents = selectedCategory === 'All'
-    ? events
-    : events.filter((e) => e.category === selectedCategory);
+  // Filter matching that handles singular/plural variants seamlessly
+  const filteredEvents = events.filter((item) => {
+    if (selectedCategory === 'All') return true;
+
+    const cat = item.category?.trim().toLowerCase();
+
+    if (selectedCategory === 'Road Trips') {
+      return cat === 'road trips' || cat === 'road trip';
+    }
+    if (selectedCategory === 'Watch Parties') {
+      return cat === 'watch party' || cat === 'watch parties';
+    }
+    if (selectedCategory === 'Group Photos') {
+      return cat === 'group photos' || cat === 'group photo' || cat === 'intermission group photos' || cat === 'on ice group photo';
+    }
+    if (selectedCategory === 'Community & Tabling') {
+      return cat === 'community & tabling' || cat === 'tabling' || cat === 'trade night';
+    }
+
+    return cat === selectedCategory.toLowerCase();
+  });
 
   const toggleExpand = (id: string) => {
     setExpandedEventId(expandedEventId === id ? null : id);
@@ -369,12 +152,12 @@ export default function EventsScreen() {
 
   const openIntakeForm = (event: SupporterEvent) => {
     setSelectedRoadTrip(event);
-    setFormData({ name: '', email: '', partySize: '1', hotelInterest: false });
+    setFormData({ name: '', email: '', partySize: '', hotelInterest: false });
     setFormVisible(true);
   };
 
   const submitIntakeForm = async () => {
-    if (!formData.name || !formData.email || !formData.partySize) {
+    if (!formData.name.trim() || !formData.email.trim() || !formData.partySize.trim()) {
       Alert.alert('Missing Fields', 'Please fill out your name, email, and party size.');
       return;
     }
@@ -384,9 +167,9 @@ export default function EventsScreen() {
       const { error } = await supabase.from('road_trip_interest').insert([{
         event_id: selectedRoadTrip?.id,
         event_name: selectedRoadTrip?.title,
-        fan_name: formData.name,
-        email: formData.email,
-        party_size: parseInt(formData.partySize, 10),
+        fan_name: formData.name.trim(),
+        email: formData.email.trim().toLowerCase(),
+        party_size: parseInt(formData.partySize, 10) || 1,
         hotel_interest: formData.hotelInterest
       }]);
 
@@ -394,9 +177,8 @@ export default function EventsScreen() {
       
       Alert.alert('Success!', 'Your interest has been logged. We will email you ticket & hotel details soon!');
       setFormVisible(false);
-    } catch (err) {
-      Alert.alert('Error', 'Could not submit your form. Please try again.');
-      console.warn('Intake form error:', err);
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Could not submit your form. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -406,7 +188,7 @@ export default function EventsScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.cardBg} />
 
-      {/* Category Filter Pills */}
+      {/* Filter Tabs */}
       <View style={[styles.filterBar, { backgroundColor: theme.cardBg, borderBottomColor: theme.borderColor }]}>
         <FlatList
           horizontal
@@ -440,7 +222,7 @@ export default function EventsScreen() {
         />
       </View>
 
-      {/* Events Feed */}
+      {/* Event List */}
       {loading ? (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={theme.accentGold} />
@@ -464,78 +246,84 @@ export default function EventsScreen() {
             </Text>
           </View>
 
-          {filteredEvents.map((item) => {
-            const isExpanded = expandedEventId === item.id;
-            const isRoadTrip = item.category === 'Road Trips';
+          {filteredEvents.length === 0 ? (
+            <View style={[styles.emptyStateCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+              <Text style={[styles.emptyStateText, { color: theme.subText }]}>
+                No events currently scheduled under this category.
+              </Text>
+            </View>
+          ) : (
+            filteredEvents.map((item) => {
+              const isExpanded = expandedEventId === item.id;
+              const isRoadTrip = item.category?.toLowerCase().includes('road trip');
 
-            return (
-              <View
-                key={item.id}
-                style={[styles.eventCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
-              >
-                {/* Category Badge & Date */}
-                <View style={styles.cardTopRow}>
-                  <View style={[styles.badge, { backgroundColor: theme.accentOrange }]}>
-                    <Text style={styles.badgeText}>{item.badge}</Text>
-                  </View>
-                  <Text style={[styles.eventDate, { color: theme.accentGold }]}>{item.date}</Text>
-                </View>
-
-                <Text style={[styles.eventTitle, { color: theme.text }]}>{item.title}</Text>
-                <Text style={[styles.eventMeta, { color: theme.subText }]}>📍 {item.location}</Text>
-                <Text style={[styles.eventMeta, { color: theme.accentGold, marginBottom: 8 }]}>⏰ {item.time}</Text>
-                <Text style={[styles.eventDesc, { color: theme.text }]}>{item.description}</Text>
-
-                {isRoadTrip && (
-                  <TouchableOpacity
-                    style={[styles.intakeBtn, { backgroundColor: theme.accentOrange }]}
-                    onPress={() => openIntakeForm(item)}
-                  >
-                    <Text style={styles.intakeBtnText}>🚌 Group Tickets & Hotel Interest</Text>
-                  </TouchableOpacity>
-                )}
-
-                {/* Expandable Itinerary & FAQs */}
-                {isExpanded && (
-                  <View style={[styles.expandedSection, { borderTopColor: theme.borderColor }]}>
-                    {item.schedule && item.schedule.length > 0 && (
-                      <View style={{ marginBottom: 12 }}>
-                        <Text style={[styles.sectionHeading, { color: theme.accentGold }]}>🕒 Schedule & Key Times:</Text>
-                        {item.schedule.map((s, idx) => (
-                          <View key={idx} style={styles.scheduleRow}>
-                            <Text style={[styles.scheduleTime, { color: theme.accentOrange }]}>{s.time}</Text>
-                            <Text style={[styles.scheduleDetail, { color: theme.text }]}>{s.detail}</Text>
-                          </View>
-                        ))}
-                      </View>
-                    )}
-
-                    {item.faqs && item.faqs.length > 0 && (
-                      <View>
-                        <Text style={[styles.sectionHeading, { color: theme.accentGold }]}>❓ Event FAQs:</Text>
-                        {item.faqs.map((faq, idx) => (
-                          <View key={idx} style={styles.faqBlock}>
-                            <Text style={[styles.faqQ, { color: theme.text }]}>Q: {faq.q}</Text>
-                            <Text style={[styles.faqA, { color: theme.subText }]}>A: {faq.a}</Text>
-                          </View>
-                        ))}
-                      </View>
-                    )}
-                  </View>
-                )}
-
-                {/* Expand Button */}
-                <TouchableOpacity
-                  style={[styles.expandBtn, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}
-                  onPress={() => toggleExpand(item.id)}
+              return (
+                <View
+                  key={item.id}
+                  style={[styles.eventCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
                 >
-                  <Text style={[styles.expandBtnText, { color: theme.accentGold }]}>
-                    {isExpanded ? 'Hide Details ▲' : 'View Schedule & FAQs ▼'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            );
-          })}
+                  <View style={styles.cardTopRow}>
+                    <View style={[styles.badge, { backgroundColor: theme.accentOrange }]}>
+                      <Text style={styles.badgeText}>{item.icon ? `${item.icon} ` : ''}{item.badge}</Text>
+                    </View>
+                    <Text style={[styles.eventDate, { color: theme.accentGold }]}>{formatDateDisplay(item.date)}</Text>
+                  </View>
+
+                  <Text style={[styles.eventTitle, { color: theme.text }]}>{item.title}</Text>
+                  <Text style={[styles.eventMeta, { color: theme.subText }]}>📍 {item.location}</Text>
+                  <Text style={[styles.eventMeta, { color: theme.accentGold, marginBottom: 8 }]}>⏰ {item.time}</Text>
+                  <Text style={[styles.eventDesc, { color: theme.text }]}>{item.description}</Text>
+
+                  {isRoadTrip && (
+                    <TouchableOpacity
+                      style={[styles.intakeBtn, { backgroundColor: theme.accentOrange }]}
+                      onPress={() => openIntakeForm(item)}
+                    >
+                      <Text style={styles.intakeBtnText}>🚌 Group Tickets & Hotel Interest</Text>
+                    </TouchableOpacity>
+                  )}
+
+                  {/* Expandable Itinerary & FAQs */}
+                  {isExpanded && (
+                    <View style={[styles.expandedSection, { borderTopColor: theme.borderColor }]}>
+                      {item.schedule && item.schedule.length > 0 && (
+                        <View style={{ marginBottom: 12 }}>
+                          <Text style={[styles.sectionHeading, { color: theme.accentGold }]}>🕒 Schedule & Key Times:</Text>
+                          {item.schedule.map((s, idx) => (
+                            <View key={idx} style={styles.scheduleRow}>
+                              <Text style={[styles.scheduleTime, { color: theme.accentOrange }]}>{s.time}</Text>
+                              <Text style={[styles.scheduleDetail, { color: theme.text }]}>{s.detail}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      )}
+
+                      {item.faqs && item.faqs.length > 0 && (
+                        <View>
+                          <Text style={[styles.sectionHeading, { color: theme.accentGold }]}>❓ Event FAQs:</Text>
+                          {item.faqs.map((faq, idx) => (
+                            <View key={idx} style={styles.faqBlock}>
+                              <Text style={[styles.faqQ, { color: theme.text }]}>Q: {faq.q}</Text>
+                              <Text style={[styles.faqA, { color: theme.subText }]}>A: {faq.a}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      )}
+                    </View>
+                  )}
+
+                  <TouchableOpacity
+                    style={[styles.expandBtn, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}
+                    onPress={() => toggleExpand(item.id)}
+                  >
+                    <Text style={[styles.expandBtnText, { color: theme.accentGold }]}>
+                      {isExpanded ? 'Hide Details ▲' : 'View Schedule & FAQs ▼'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              );
+            })
+          )}
         </ScrollView>
       )}
 
@@ -559,10 +347,12 @@ export default function EventsScreen() {
               placeholder="Email Address"
               placeholderTextColor={theme.subText}
               keyboardType="email-address"
+              autoCapitalize="none"
               value={formData.email}
               onChangeText={(text) => setFormData({ ...formData, email: text })}
             />
 
+            {/* Blank default allows placeholder to clearly instruct the user */}
             <TextInput
               style={[styles.input, { backgroundColor: theme.subCardBg, color: theme.text, borderColor: theme.borderColor }]}
               placeholder="Party Size (Number of Tickets)"
@@ -607,6 +397,8 @@ const styles = StyleSheet.create({
   bannerCard: { padding: 16, borderRadius: 14, borderWidth: 1, marginBottom: 14, alignItems: 'center' },
   bannerTitle: { fontSize: 17, fontWeight: '900', letterSpacing: 0.5 },
   bannerSub: { fontSize: 12, textAlign: 'center', marginTop: 4 },
+  emptyStateCard: { padding: 24, borderRadius: 14, borderWidth: 1, alignItems: 'center' },
+  emptyStateText: { fontSize: 13, fontWeight: '600', textAlign: 'center' },
   eventCard: { padding: 16, borderRadius: 14, borderWidth: 1, marginBottom: 14 },
   cardTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   badge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
@@ -618,15 +410,13 @@ const styles = StyleSheet.create({
   expandedSection: { borderTopWidth: 1, paddingTop: 12, marginTop: 6 },
   sectionHeading: { fontSize: 13, fontWeight: '900', marginBottom: 6 },
   scheduleRow: { flexDirection: 'row', marginBottom: 4 },
-  scheduleTime: { width: 100, fontSize: 12, fontWeight: '800' },
+  scheduleTime: { width: 130, fontSize: 12, fontWeight: '800' },
   scheduleDetail: { flex: 1, fontSize: 12, fontWeight: '600' },
   faqBlock: { marginBottom: 8 },
   faqQ: { fontSize: 12, fontWeight: '800', marginBottom: 2 },
   faqA: { fontSize: 12, fontWeight: '500', lineHeight: 16 },
   expandBtn: { paddingVertical: 8, borderRadius: 8, borderWidth: 1, alignItems: 'center', marginTop: 6 },
   expandBtnText: { fontSize: 12, fontWeight: '800' },
-  
-  // Intake Form Styles
   intakeBtn: { paddingVertical: 10, borderRadius: 8, alignItems: 'center', marginTop: 10, marginBottom: 4 },
   intakeBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '900' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', paddingHorizontal: 20 },

@@ -4,70 +4,81 @@ import {
   Text,
   View,
   SafeAreaView,
-  StatusBar,
   ScrollView,
   TouchableOpacity,
+  FlatList,
+  StatusBar,
   ActivityIndicator,
-  Linking,
-  RefreshControl
+  RefreshControl,
+  Modal,
 } from 'react-native';
-import * as WebBrowser from 'expo-web-browser';
 import { supabase } from '../../supabase';
 import { useAppTheme } from '../../context/ThemeContext';
 
-const TICKETMASTER_BARRACUDA_URL = 'https://www.ticketmaster.com/san-jose-barracuda-tickets/artist/2148253';
-
-type ScheduleTab = 'ALL' | 'HOME' | 'AWAY' | 'THEME';
-
-interface GameScheduleItem {
+export interface GameScheduleItem {
   id: string;
   game_date: string;
+  date_display: string;
   game_time: string;
-  opponent?: string;
-  opponent_abbr?: string;
-  home_away: 'HOME' | 'AWAY';
-  venue?: string;
+  opponent: string;
+  opponent_abbr: string;
+  is_home: boolean;
+  venue: string;
   theme_night?: string;
-  promo?: string;
-  status?: string;
-  home_score?: number;
-  away_score?: number;
+  supporterEvent?: any;
 }
 
-const AHL_TEAM_COLORS: Record<string, { bg: string; text: string }> = {
-  SD: { bg: '#FF4C00', text: '#FFFFFF' },   // San Diego Gulls
-  TUC: { bg: '#8C2633', text: '#FFFFFF' },  // Tucson Roadrunners
-  CGY: { bg: '#C8102E', text: '#FFFFFF' },  // Calgary Wranglers
-  CV: { bg: '#D82232', text: '#FFFFFF' },   // Coachella Valley Firebirds
-  ABB: { bg: '#00843D', text: '#FFFFFF' },  // Abbotsford Canucks
-  BAK: { bg: '#002D62', text: '#FFFFFF' },  // Bakersfield Condors
-  ONT: { bg: '#222222', text: '#FFFFFF' },  // Ontario Reign
-  HSK: { bg: '#777777', text: '#FFFFFF' },  // Henderson Silver Knights
-  TEX: { bg: '#006847', text: '#FFFFFF' },  // Texas Stars
-  COL: { bg: '#6F263D', text: '#FFFFFF' },  // Colorado Eagles
-  DEFAULT: { bg: '#1E293B', text: '#FFFFFF' }
-};
+const SCHEDULE_FILTERS = ['All Games', 'Home', 'Away', 'Theme Nights'] as const;
 
 export default function ScheduleScreen() {
   const { theme } = useAppTheme();
-  const [activeTab, setActiveTab] = useState<ScheduleTab>('ALL');
+  const [filter, setFilter] = useState<typeof SCHEDULE_FILTERS[number]>('All Games');
   const [games, setGames] = useState<GameScheduleItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const fetchSchedule = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('schedule')
-        .select('*')
-        .order('game_date', { ascending: true });
+  const [selectedGame, setSelectedGame] = useState<GameScheduleItem | null>(null);
+  const [modalVisible, setModalVisible] = useState(false);
 
-      if (error) throw error;
-      if (data) {
-        setGames(data as GameScheduleItem[]);
+  const fetchScheduleAndEvents = async () => {
+    try {
+      const [scheduleRes, eventsRes] = await Promise.all([
+        supabase.from('schedule').select('*').order('game_date', { ascending: true }),
+        supabase.from('supporter_events').select('*'),
+      ]);
+
+      const eventsList = Array.isArray(eventsRes.data) ? eventsRes.data : [];
+
+      if (!scheduleRes.error && Array.isArray(scheduleRes.data)) {
+        const mapped = scheduleRes.data.map((item: any) => {
+          const gameDate = item.game_date || '';
+          
+          const matchedEvent = eventsList.find(
+            (e: any) =>
+              e.event_date === gameDate ||
+              (item.theme_night && e.title?.toLowerCase().includes(item.theme_night.toLowerCase()))
+          );
+
+          const isHome = item.home_away === 'HOME';
+
+          return {
+            id: String(item.id),
+            game_date: gameDate,
+            date_display: item.date_display || gameDate,
+            game_time: item.game_time || 'TBA',
+            opponent: item.opponent || 'Opponent',
+            opponent_abbr: item.opponent_abbr || 'OPP',
+            is_home: isHome,
+            venue: item.venue || (isHome ? 'Tech CU Arena' : 'Opponent Arena'),
+            theme_night: item.theme_night || undefined,
+            supporterEvent: matchedEvent,
+          };
+        });
+
+        setGames(mapped);
       }
     } catch (err) {
-      console.warn('Could not fetch schedule, using local fallback:', err);
+      console.warn('Schedule fetch error:', err);
     } finally {
       setLoading(false);
     }
@@ -75,190 +86,286 @@ export default function ScheduleScreen() {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await fetchSchedule();
+    await fetchScheduleAndEvents();
     setRefreshing(false);
   }, []);
 
   useEffect(() => {
-    fetchSchedule();
-    setLoading(true);
+    fetchScheduleAndEvents();
   }, []);
 
-  const handleOpenTicketmaster = async () => {
-    try {
-      await WebBrowser.openBrowserAsync(TICKETMASTER_BARRACUDA_URL);
-    } catch {
-      Linking.openURL(TICKETMASTER_BARRACUDA_URL);
-    }
-  };
-
-  const formatTime = (timeStr?: string) => {
-    if (!timeStr) return 'TBD';
-    if (timeStr.toUpperCase().includes('AM') || timeStr.toUpperCase().includes('PM')) return `${timeStr} PST`;
-    const parts = timeStr.split(':');
-    if (parts.length < 2) return timeStr;
-    let h = parseInt(parts[0], 10);
-    const m = parts[1];
-    const ampm = h >= 12 ? 'PM' : 'AM';
-    h = h % 12 || 12;
-    return `${h}:${m} ${ampm} PST`;
+  const openAwayActionModal = (game: GameScheduleItem) => {
+    setSelectedGame(game);
+    setModalVisible(true);
   };
 
   const filteredGames = games.filter((game) => {
-    const isHomeGame = game.home_away === 'HOME';
-
-    if (activeTab === 'HOME') return isHomeGame;
-    if (activeTab === 'AWAY') return !isHomeGame;
-    if (activeTab === 'THEME') {
-      const hasTheme = Boolean(game.theme_night?.trim() || game.promo?.trim());
-      return isHomeGame && hasTheme;
+    if (filter === 'Home') return game.is_home;
+    if (filter === 'Away') return !game.is_home;
+    if (filter === 'Theme Nights') {
+      if (!game.theme_night) return false;
+      const lowerTheme = game.theme_night.toLowerCase();
+      if (
+        lowerTheme.includes('watch') ||
+        lowerTheme.includes('road trip') ||
+        lowerTheme.includes('photo')
+      ) {
+        return false;
+      }
+      return true;
     }
-    return true; 
+    return true;
   });
 
-  const getOpponentColors = (abbr?: string) => {
-    const key = (abbr || '').toUpperCase().trim();
-    return AHL_TEAM_COLORS[key] || AHL_TEAM_COLORS.DEFAULT;
-  };
+  const evt = selectedGame?.supporterEvent;
+  const isWatchParty =
+    selectedGame?.theme_night?.toLowerCase().includes('watch') ||
+    evt?.category?.toLowerCase().includes('watch');
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
       <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.cardBg} />
 
-      <View style={[styles.headerBanner, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}>
-        <Text style={[styles.headerTitle, { color: theme.accentGold }]}>2025–26 SEASON SCHEDULE</Text>
-        <Text style={[styles.headerSub, { color: theme.text }]}>Defend The Reef at Tech CU Arena & on the road 🦈</Text>
+      {/* Filter Selector */}
+      <View style={[styles.filterBar, { backgroundColor: theme.cardBg, borderBottomColor: theme.borderColor }]}>
+        <FlatList
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          data={SCHEDULE_FILTERS}
+          keyExtractor={(item) => item}
+          contentContainerStyle={{ paddingHorizontal: 14, gap: 8, paddingVertical: 10 }}
+          renderItem={({ item }) => {
+            const isActive = item === filter;
+            return (
+              <TouchableOpacity
+                style={[
+                  styles.filterPill,
+                  { backgroundColor: theme.subCardBg, borderColor: theme.borderColor },
+                  isActive && { backgroundColor: theme.accentGold, borderColor: theme.accentGold },
+                ]}
+                onPress={() => setFilter(item)}
+              >
+                <Text
+                  style={[
+                    styles.filterPillText,
+                    { color: theme.text },
+                    isActive && { color: '#001417', fontWeight: '900' },
+                  ]}
+                >
+                  {item}
+                </Text>
+              </TouchableOpacity>
+            );
+          }}
+        />
       </View>
 
-      <View style={[styles.tabsContainer, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-        {(['ALL', 'HOME', 'AWAY', 'THEME'] as ScheduleTab[]).map((tab) => {
-          const isActive = activeTab === tab;
-          const label = tab === 'ALL' ? 'All Games' : tab === 'HOME' ? 'Home' : tab === 'AWAY' ? 'Away' : '🎉 Theme Nights';
-
-          return (
-            <TouchableOpacity
-              key={tab}
-              style={[
-                styles.tabPill,
-                { backgroundColor: theme.subCardBg, borderColor: theme.borderColor },
-                isActive && { backgroundColor: theme.accentGold, borderColor: theme.accentGold },
-              ]}
-              onPress={() => setActiveTab(tab)}
-            >
-              <Text style={[styles.tabText, { color: theme.subText }, isActive && { color: '#001417', fontWeight: '900' }]}>
-                {label}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-
+      {/* Schedule Feed */}
       {loading ? (
-        <View style={styles.loaderCenter}>
+        <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={theme.accentGold} />
         </View>
       ) : (
-        <ScrollView 
-          contentContainerStyle={styles.scrollContent} 
-          showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accentGold} colors={[theme.accentGold, theme.accentOrange]} />}
+        <ScrollView
+          contentContainerStyle={styles.contentPadding}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={theme.accentGold}
+              colors={[theme.accentGold, theme.accentOrange]}
+            />
+          }
         >
-          {filteredGames.length === 0 ? (
-            <View style={[styles.emptyCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-              <Text style={[styles.emptyText, { color: theme.subText }]}>No games scheduled under this category.</Text>
-            </View>
-          ) : (
-            filteredGames.map((game, index) => {
-              const isHomeGame = game.home_away === 'HOME';
-              const oppColors = getOpponentColors(game.opponent_abbr);
-              const themeTitle = game.theme_night || game.promo;
-              const isFinal = game.status?.toUpperCase() === 'FINAL';
+          {filteredGames.map((game) => {
+            const isAway = !game.is_home;
+            const hasAwayAction = isAway && (game.theme_night || game.supporterEvent);
 
-              return (
-                <View key={game.id || String(index)} style={[styles.gameCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-                  <View style={[styles.gameCardHeader, { borderBottomColor: theme.borderColor }]}>
-                    <Text style={[styles.gameDateText, { color: theme.accentGold }]}>📅 {game.game_date}</Text>
-                    <Text style={[styles.gameTimeText, { color: theme.subText }]}>
-                      {isFinal ? 'FINAL' : `⏰ ${formatTime(game.game_time)}`}
+            return (
+              <View
+                key={game.id}
+                style={[
+                  styles.gameCard,
+                  { backgroundColor: theme.cardBg, borderColor: theme.borderColor },
+                ]}
+              >
+                <View style={styles.topRow}>
+                  <View
+                    style={[
+                      styles.locBadge,
+                      { backgroundColor: game.is_home ? theme.accentGold : theme.subCardBg },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.locBadgeText,
+                        { color: game.is_home ? '#001417' : theme.subText },
+                      ]}
+                    >
+                      {game.is_home ? 'HOME' : 'AWAY'}
                     </Text>
                   </View>
 
-                  <View style={styles.matchupRow}>
-                    <View style={styles.teamColumn}>
-                      <View style={[styles.badgeCircle, { backgroundColor: isHomeGame ? '#266B73' : oppColors.bg, borderColor: isHomeGame ? '#000' : '#80B3B8' }]}>
-                        <Text style={[styles.badgeText, { color: isHomeGame ? '#FFF' : oppColors.text }]}>
-                          {isHomeGame ? 'SJ' : game.opponent_abbr || 'OPP'}
-                        </Text>
-                      </View>
-                      <Text style={[styles.teamName, { color: theme.text }]} numberOfLines={1}>{isHomeGame ? 'Barracuda' : game.opponent}</Text>
-                      {isFinal && <Text style={[styles.scoreText, { color: theme.text }]}>{isHomeGame ? game.home_score : game.away_score}</Text>}
-                    </View>
+                  <Text style={[styles.gameDate, { color: theme.accentGold }]}>
+                    {game.date_display || game.game_date}
+                  </Text>
+                </View>
 
-                    <View style={styles.vsContainer}>
-                      <Text style={[styles.vsText, { color: theme.subText }]}>{isHomeGame ? 'VS' : '@'}</Text>
-                    </View>
-
-                    <View style={styles.teamColumn}>
-                      <View style={[styles.badgeCircle, { backgroundColor: isHomeGame ? oppColors.bg : '#266B73', borderColor: isHomeGame ? '#80B3B8' : '#000' }]}>
-                        <Text style={[styles.badgeText, { color: isHomeGame ? oppColors.text : '#FFF' }]}>
-                          {isHomeGame ? game.opponent_abbr || 'OPP' : 'SJ'}
-                        </Text>
-                      </View>
-                      <Text style={[styles.teamName, { color: theme.text }]} numberOfLines={1}>{isHomeGame ? game.opponent : 'Barracuda'}</Text>
-                      {isFinal && <Text style={[styles.scoreText, { color: theme.text }]}>{isHomeGame ? game.away_score : game.home_score}</Text>}
-                    </View>
+                {/* Matchup Center - Universally SJ Teal Circle */}
+                <View style={styles.matchupRow}>
+                  <View style={[styles.teamCircle, { backgroundColor: '#266B73' }]}>
+                    <Text style={[styles.teamCircleText, { color: '#FFFFFF' }]}>
+                      SJ
+                    </Text>
                   </View>
 
-                  {themeTitle && (
-                    <View style={[styles.promoBox, { backgroundColor: theme.subCardBg, borderColor: theme.accentGold }]}>
-                      <Text style={[styles.promoText, { color: theme.accentGold }]}>🎉 <Text style={{ fontWeight: '900' }}>Theme:</Text> {themeTitle}</Text>
-                    </View>
-                  )}
-
-                  {!isFinal && isHomeGame && (
-                    <View style={[styles.cardFooter, { borderTopColor: theme.borderColor }]}>
-                      <TouchableOpacity style={[styles.buyTicketsBtn, { backgroundColor: theme.accentOrange }]} onPress={handleOpenTicketmaster} activeOpacity={0.85}>
-                        <Text style={styles.buyTicketsText}>🎟️ Buy Tickets on Ticketmaster ➔</Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <Text style={[styles.opponentName, { color: theme.text }]}>
+                      {game.is_home ? `vs ${game.opponent}` : `@ ${game.opponent}`}
+                    </Text>
+                    <Text style={[styles.venueText, { color: theme.subText }]}>📍 {game.venue}</Text>
+                    <Text style={[styles.timeText, { color: theme.accentOrange }]}>⏰ {game.game_time}</Text>
+                  </View>
                 </View>
-              );
-            })
-          )}
+
+                {/* Action Bar or Static Theme */}
+                {hasAwayAction ? (
+                  <TouchableOpacity
+                    style={[styles.themeActionBar, { backgroundColor: theme.subCardBg, borderColor: theme.accentOrange }]}
+                    onPress={() => openAwayActionModal(game)}
+                    activeOpacity={0.8}
+                  >
+                    <View style={styles.themeActionLeft}>
+                      <Text style={styles.themeActionIcon}>{isWatchParty ? '📺' : '🚗'}</Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.themeActionTitle, { color: theme.accentGold }]} numberOfLines={1}>
+                          {evt?.title || game.theme_night}
+                        </Text>
+                        <Text style={[styles.themeActionSub, { color: theme.subText }]}>
+                          Tap for supporter event status & details
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={[styles.themeActionBtnText, { color: theme.accentOrange }]}>Details ➔</Text>
+                  </TouchableOpacity>
+                ) : (
+                  game.theme_night && (
+                    <View style={[styles.staticThemeBar, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}>
+                      <Text style={[styles.staticThemeText, { color: theme.accentGold }]}>
+                        🌟 {game.theme_night}
+                      </Text>
+                    </View>
+                  )
+                )}
+              </View>
+            );
+          })}
         </ScrollView>
       )}
+
+      {/* Away Game Info Modal */}
+      <Modal visible={modalVisible} transparent animationType="fade" onRequestClose={() => setModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { backgroundColor: theme.cardBg, borderColor: theme.accentGold }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalBadgeText, { color: theme.accentOrange }]}>
+                {evt?.badge || selectedGame?.theme_night || 'AWAY SUPPORTER EVENT'}
+              </Text>
+              <TouchableOpacity onPress={() => setModalVisible(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Text style={[styles.modalClose, { color: theme.subText }]}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={[styles.modalMatchupBox, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}>
+              <Text style={[styles.modalMatchupTitle, { color: theme.text }]}>
+                Barracuda @ {selectedGame?.opponent}
+              </Text>
+              <Text style={[styles.modalMatchupDetail, { color: theme.subText }]}>
+                📍 {evt?.location || selectedGame?.venue}
+              </Text>
+              <Text style={[styles.modalMatchupDetail, { color: theme.accentGold }]}>
+                📅 {selectedGame?.date_display || selectedGame?.game_date} • {selectedGame?.game_time}
+              </Text>
+            </View>
+
+            <ScrollView style={{ maxHeight: 250, marginVertical: 12 }}>
+              <Text style={[styles.descTitle, { color: theme.accentGold }]}>
+                {evt?.title || (isWatchParty ? 'Away Watch Party' : 'Road Game Invasion')}
+              </Text>
+              <Text style={[styles.descBody, { color: theme.text }]}>
+                {evt?.description ||
+                  (isWatchParty
+                    ? 'Cheer on our Barracuda with sound on broadcast, raffle prizes, and Section 108 chant energy while the team is on the road!'
+                    : 'Join the traveling Battery Pack contingent to bring Section 108 energy to opponent arenas!')}
+              </Text>
+
+              {evt?.location && (
+                <Text style={[styles.descBody, { color: theme.subText, marginTop: 8 }]}>
+                  • <Text style={{ fontWeight: '700', color: theme.text }}>Location Details:</Text> {evt.location}
+                </Text>
+              )}
+            </ScrollView>
+
+            <TouchableOpacity
+              style={[styles.modalConfirmBtn, { backgroundColor: theme.accentGold }]}
+              onPress={() => setModalVisible(false)}
+            >
+              <Text style={[styles.modalConfirmBtnText]}>Got It</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  headerBanner: { paddingVertical: 14, paddingHorizontal: 16, borderRadius: 14, marginHorizontal: 14, marginTop: 10, marginBottom: 8, borderWidth: 1, alignItems: 'center' },
-  headerTitle: { fontSize: 17, fontWeight: '900', letterSpacing: 0.5 },
-  headerSub: { fontSize: 12, textAlign: 'center', fontWeight: '600', marginTop: 2 },
-  tabsContainer: { flexDirection: 'row', marginHorizontal: 14, padding: 6, borderRadius: 12, borderWidth: 1, gap: 6, justifyContent: 'space-between', marginBottom: 10 },
-  tabPill: { flex: 1, paddingVertical: 8, borderRadius: 8, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  tabText: { fontSize: 11, fontWeight: '800' },
-  loaderCenter: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  scrollContent: { paddingHorizontal: 14, paddingBottom: 40 },
-  gameCard: { borderRadius: 14, borderWidth: 1, marginBottom: 12, overflow: 'hidden' },
-  gameCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 8, borderBottomWidth: 1 },
-  gameDateText: { fontSize: 12, fontWeight: '800' },
-  gameTimeText: { fontSize: 11, fontWeight: '700' },
-  matchupRow: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 10 },
-  teamColumn: { alignItems: 'center', width: '38%' },
-  badgeCircle: { width: 48, height: 48, borderRadius: 24, borderWidth: 2, justifyContent: 'center', alignItems: 'center', marginBottom: 6 },
-  badgeText: { fontSize: 15, fontWeight: '900', letterSpacing: 0.5 },
-  teamName: { fontSize: 13, fontWeight: '800', textAlign: 'center' },
-  scoreText: { fontSize: 18, fontWeight: '900', marginTop: 4 },
-  vsContainer: { width: 32, alignItems: 'center', justifyContent: 'center' },
-  vsText: { fontSize: 14, fontWeight: '900' },
-  promoBox: { marginHorizontal: 12, marginBottom: 10, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, alignItems: 'center' },
-  promoText: { fontSize: 11, fontWeight: '700', textAlign: 'center' },
-  cardFooter: { padding: 10, borderTopWidth: 1 },
-  buyTicketsBtn: { paddingVertical: 10, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  buyTicketsText: { color: '#FFFFFF', fontSize: 13, fontWeight: '900' },
-  emptyCard: { padding: 24, borderRadius: 12, borderWidth: 1, alignItems: 'center', marginTop: 20 },
-  emptyText: { fontSize: 13, fontWeight: '600' },
+  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  filterBar: { borderBottomWidth: 1 },
+  filterPill: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
+  filterPillText: { fontSize: 12, fontWeight: '700' },
+  contentPadding: { padding: 14, paddingBottom: 40 },
+  gameCard: { borderRadius: 14, borderWidth: 1, padding: 14, marginBottom: 12 },
+  topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  locBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  locBadgeText: { fontSize: 10, fontWeight: '900' },
+  gameDate: { fontSize: 12, fontWeight: '800' },
+  matchupRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  teamCircle: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
+  teamCircleText: { fontSize: 13, fontWeight: '900' },
+  opponentName: { fontSize: 15, fontWeight: '800', marginBottom: 2 },
+  venueText: { fontSize: 12, fontWeight: '500', marginBottom: 2 },
+  timeText: { fontSize: 12, fontWeight: '800' },
+
+  themeActionBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginTop: 6,
+  },
+  themeActionLeft: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, marginRight: 8 },
+  themeActionIcon: { fontSize: 18 },
+  themeActionTitle: { fontSize: 12, fontWeight: '800' },
+  themeActionSub: { fontSize: 10, fontWeight: '500' },
+  themeActionBtnText: { fontSize: 12, fontWeight: '900' },
+
+  staticThemeBar: { padding: 10, borderRadius: 8, borderWidth: 1, marginTop: 6 },
+  staticThemeText: { fontSize: 12, fontWeight: '700', lineHeight: 16 },
+
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'center', padding: 20 },
+  modalCard: { borderRadius: 16, borderWidth: 1, padding: 18 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  modalBadgeText: { fontSize: 12, fontWeight: '900', letterSpacing: 0.5 },
+  modalClose: { fontSize: 18, fontWeight: '800' },
+  modalMatchupBox: { padding: 12, borderRadius: 10, borderWidth: 1, marginBottom: 10 },
+  modalMatchupTitle: { fontSize: 15, fontWeight: '900', marginBottom: 4 },
+  modalMatchupDetail: { fontSize: 12, fontWeight: '600', marginBottom: 2 },
+  descTitle: { fontSize: 14, fontWeight: '800', marginBottom: 6 },
+  descBody: { fontSize: 12, lineHeight: 18 },
+  modalConfirmBtn: { paddingVertical: 12, borderRadius: 10, alignItems: 'center', marginTop: 8 },
+  modalConfirmBtnText: { color: '#001417', fontSize: 14, fontWeight: '900' },
 });

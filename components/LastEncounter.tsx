@@ -122,7 +122,7 @@ export default function LastEncounter({
       <View style={[styles.card, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
         <View style={[styles.scoreBanner, { borderBottomColor: theme.borderColor }]}>
           
-          {/* SJ Barracuda: Teal fill (#266B73) + Solid Black Outline */}
+          {/* SJ Barracuda */}
           <View style={styles.teamCol}>
             <View style={[styles.teamBadge, styles.sjBadge]}>
               <Text style={styles.sjBadgeText}>SJ</Text>
@@ -131,7 +131,7 @@ export default function LastEncounter({
             <Text style={[styles.scoreText, { color: theme.text }]}>{scoreSJ}</Text>
           </View>
 
-          {/* Outcome Badge: FINAL (W) in #266B73 font and circle outline */}
+          {/* Outcome Badge */}
           <View style={styles.outcomeCol}>
             <View 
               style={[
@@ -193,7 +193,7 @@ export default function LastEncounter({
             <View style={[styles.modalHeader, { borderBottomColor: theme.borderColor }]}>
               <Text style={[styles.modalHeaderTitle, { color: theme.accentGold }]}>MATCH REPORT & STATS</Text>
               <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.closeIconBtn}>
-                <Text style={[styles.closeIconText, { color: theme.text }]}>✕</Text>
+                <Text style={[styles.closeIconText, { color: theme.accentGold }]}>✕</Text>
               </TouchableOpacity>
             </View>
 
@@ -213,30 +213,30 @@ export default function LastEncounter({
               <Text style={[styles.subSectionTitle, { color: theme.accentGold }]}>PERIOD BREAKDOWN</Text>
               <View style={[styles.tableCard, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}>
                 <View style={[styles.tableRowHeader, { borderBottomColor: theme.borderColor }]}>
-                  <Text style={[styles.tableCell, styles.tableCellTeam, { color: theme.subText }]}>Team</Text>
-                  <Text style={[styles.tableCell, { color: theme.subText }]}>1st</Text>
-                  <Text style={[styles.tableCell, { color: theme.subText }]}>2nd</Text>
-                  <Text style={[styles.tableCell, { color: theme.subText }]}>3rd</Text>
-                  {stats.periods.ot && <Text style={[styles.tableCell, { color: theme.subText }]}>OT</Text>}
-                  <Text style={[styles.tableCell, styles.boldCell, { color: theme.accentGold }]}>T</Text>
+                  <Text style={[styles.tableCellTeamHeader, { color: theme.subText }]}>Team</Text>
+                  <Text style={[styles.tableCellHeader, { color: theme.subText }]}>1st</Text>
+                  <Text style={[styles.tableCellHeader, { color: theme.subText }]}>2nd</Text>
+                  <Text style={[styles.tableCellHeader, { color: theme.subText }]}>3rd</Text>
+                  {stats.periods.ot && <Text style={[styles.tableCellHeader, { color: theme.subText }]}>OT</Text>}
+                  <Text style={[styles.tableCellHeader, styles.boldCell, { color: theme.accentGold }]}>F</Text>
                 </View>
                 {/* SJ Row */}
                 <View style={[styles.tableRow, { borderBottomColor: theme.borderColor }]}>
-                  <Text style={[styles.tableCellTeam, styles.tableCellText, { color: theme.text, fontWeight: '800' }]}>SJ</Text>
-                  <Text style={[styles.tableCellText, { color: theme.text }]}>{stats.periods.p1[0]}</Text>
-                  <Text style={[styles.tableCellText, { color: theme.text }]}>{stats.periods.p2[0]}</Text>
-                  <Text style={[styles.tableCellText, { color: theme.text }]}>{stats.periods.p3[0]}</Text>
-                  {stats.periods.ot && <Text style={[styles.tableCellText, { color: theme.text }]}>{stats.periods.ot[0]}</Text>}
-                  <Text style={[styles.tableCellText, styles.boldCell, { color: theme.accentGold }]}>{scoreSJ}</Text>
+                  <Text style={[styles.tableCellTeamData, { color: theme.text, fontWeight: '800' }]}>SJ</Text>
+                  <Text style={[styles.tableCellData, { color: theme.text }]}>{stats.periods.p1[0]}</Text>
+                  <Text style={[styles.tableCellData, { color: theme.text }]}>{stats.periods.p2[0]}</Text>
+                  <Text style={[styles.tableCellData, { color: theme.text }]}>{stats.periods.p3[0]}</Text>
+                  {stats.periods.ot && <Text style={[styles.tableCellData, { color: theme.text }]}>{stats.periods.ot[0]}</Text>}
+                  <Text style={[styles.tableCellData, styles.boldCell, { color: theme.accentGold }]}>{scoreSJ}</Text>
                 </View>
                 {/* Opponent Row */}
                 <View style={[styles.tableRow, { borderBottomWidth: 0 }]}>
-                  <Text style={[styles.tableCellTeam, styles.tableCellText, { color: opp.text, fontWeight: '800' }]}>{opp.abbr}</Text>
-                  <Text style={[styles.tableCellText, { color: theme.text }]}>{stats.periods.p1[1]}</Text>
-                  <Text style={[styles.tableCellText, { color: theme.text }]}>{stats.periods.p2[1]}</Text>
-                  <Text style={[styles.tableCellText, { color: theme.text }]}>{stats.periods.p3[1]}</Text>
-                  {stats.periods.ot && <Text style={[styles.tableCellText, { color: theme.text }]}>{stats.periods.ot[1]}</Text>}
-                  <Text style={[styles.tableCellText, styles.boldCell, { color: theme.accentGold }]}>{scoreOpp}</Text>
+                  <Text style={[styles.tableCellTeamData, { color: opp.text, fontWeight: '800' }]}>{opp.abbr}</Text>
+                  <Text style={[styles.tableCellData, { color: theme.text }]}>{stats.periods.p1[1]}</Text>
+                  <Text style={[styles.tableCellData, { color: theme.text }]}>{stats.periods.p2[1]}</Text>
+                  <Text style={[styles.tableCellData, { color: theme.text }]}>{stats.periods.p3[1]}</Text>
+                  {stats.periods.ot && <Text style={[styles.tableCellData, { color: theme.text }]}>{stats.periods.ot[1]}</Text>}
+                  <Text style={[styles.tableCellData, styles.boldCell, { color: theme.accentGold }]}>{scoreOpp}</Text>
                 </View>
               </View>
 
@@ -244,6 +244,13 @@ export default function LastEncounter({
               <Text style={[styles.subSectionTitle, { color: theme.accentGold }]}>TEAM COMPARISON</Text>
               <View style={[styles.statComparisonBox, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}>
                 
+                {/* Team Abbreviation Header Row */}
+                <View style={[styles.statHeaderRow, { borderBottomColor: theme.borderColor }]}>
+                  <Text style={[styles.statHeaderLeft, { color: theme.accentGold }]}>SJ</Text>
+                  <Text style={[styles.statHeaderCenter, { color: theme.subText }]}>Metric</Text>
+                  <Text style={[styles.statHeaderRight, { color: opp.text }]}>{opp.abbr}</Text>
+                </View>
+
                 {/* Shots on Goal */}
                 <View style={[styles.statRow, { borderBottomColor: theme.borderColor }]}>
                   <Text style={[styles.statValLeft, { color: theme.text }]}>{stats.sog[0]}</Text>
@@ -467,7 +474,7 @@ const styles = StyleSheet.create({
   },
   closeIconText: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '900',
   },
   modalScroll: {
     padding: 16,
@@ -515,23 +522,32 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     borderBottomWidth: 1,
     paddingBottom: 6,
+    alignItems: 'center',
   },
   tableRow: {
     flexDirection: 'row',
     borderBottomWidth: 1,
-    paddingVertical: 6,
+    paddingVertical: 8,
+    alignItems: 'center',
   },
-  tableCellTeam: {
-    flex: 2,
+  tableCellTeamHeader: {
+    flex: 1.5,
     textAlign: 'left',
+    fontSize: 11,
+    fontWeight: '700',
   },
-  tableCell: {
+  tableCellTeamData: {
+    flex: 1.5,
+    textAlign: 'left',
+    fontSize: 12,
+  },
+  tableCellHeader: {
     flex: 1,
     textAlign: 'center',
     fontSize: 11,
     fontWeight: '700',
   },
-  tableCellText: {
+  tableCellData: {
     flex: 1,
     textAlign: 'center',
     fontSize: 12,
@@ -544,6 +560,32 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 16,
     borderWidth: 1,
+  },
+  statHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingBottom: 6,
+    borderBottomWidth: 1,
+  },
+  statHeaderLeft: {
+    fontWeight: '900',
+    fontSize: 12,
+    width: 80,
+    textAlign: 'left',
+  },
+  statHeaderCenter: {
+    fontSize: 10,
+    fontWeight: '700',
+    textAlign: 'center',
+    flex: 1,
+    letterSpacing: 0.5,
+  },
+  statHeaderRight: {
+    fontWeight: '900',
+    fontSize: 12,
+    width: 80,
+    textAlign: 'right',
   },
   statRow: {
     flexDirection: 'row',
