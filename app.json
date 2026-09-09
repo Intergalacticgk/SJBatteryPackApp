@@ -4,9 +4,10 @@
     "slug": "SJBatteryPackApp",
     "scheme": "sjbatterypack",
     "version": "2.1.0",
-    "orientation": "default",
+    "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "userInterfaceStyle": "dark",
+    "newArchEnabled": false,
     "splash": {
       "image": "./assets/images/splash-logo.png",
       "resizeMode": "contain",
@@ -16,7 +17,7 @@
       "deploymentTarget": "16.4",
       "supportsTablet": true,
       "bundleIdentifier": "com.sjbatterypack.myapp",
-      "buildNumber": "2.1.5",
+      "buildNumber": "2.1.6",
       "usesAppleSignIn": true,
       "icon": "./assets/images/icon.png",
       "splash": {
@@ -39,8 +40,8 @@
     },
     "android": {
       "package": "com.sjbatterypack.myapp",
-      "versionCode": 48,
-      "softwareKeyboardLayoutMode": "pan",
+      "versionCode": 50,
+      "softwareKeyboardLayoutMode": "resize",
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-foreground.png",
@@ -74,7 +75,6 @@
           "backgroundColor": "#001E22"
         }
       ],
-      "expo-web-browser",
       "expo-font",
       "@react-native-google-signin/google-signin",
       "expo-apple-authentication",
@@ -92,11 +92,18 @@
           "isAccessMediaLocationEnabled": false
         }
       ],
-      "expo-image",
-      "expo-status-bar",
-      "expo-audio",
-      "expo-video",
-      "expo-build-properties"
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 34,
+            "buildToolsVersion": "35.0.0",
+            "kotlinVersion": "1.9.24",
+            "gradleVersion": "8.8"
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
