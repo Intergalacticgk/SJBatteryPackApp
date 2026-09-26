@@ -3,22 +3,24 @@ import {
   StyleSheet,
   Text,
   View,
-  SafeAreaView,
   TouchableOpacity,
   ScrollView,
   TextInput,
   Alert,
   ActivityIndicator,
   Platform,
-  StatusBar,
   Switch,
   Modal,
   FlatList,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Crypto from 'expo-crypto';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import { supabase } from '../../supabase';
+import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
 import { useAppTheme } from '../../context/ThemeContext';
 
 const SECTIONS = [
@@ -30,7 +32,6 @@ const SECTIONS = [
 const ROWS = Array.from({ length: 13 }, (_, i) => String(i + 1));
 const SEATS = Array.from({ length: 22 }, (_, i) => String(i + 1));
 
-// Lightweight helper to decode JWT payload without external dependencies
 function extractNonceFromJwt(token: string): string | undefined {
   try {
     const base64Url = token.split('.')[1];
@@ -63,12 +64,40 @@ export default function AccountScreen() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // Accordions
   const [profileExpanded, setProfileExpanded] = useState(true);
   const [stmExpanded, setStmExpanded] = useState(false);
+  
+  const [notificationsExpanded, setNotificationsExpanded] = useState(false);
+  const [notifyLiveScores, setNotifyLiveScores] = useState(true);
+  const [notifyGamedayReminders, setNotifyGamedayReminders] = useState(true);
+  const [notifyEvents, setNotifyEvents] = useState(true);
+  const [deviceToken, setDeviceToken] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function loadNotificationPrefs() {
+      try {
+        const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? 'd4824861-c576-4382-91d9-c7ef0f26cf5f';
+        const tokenData = await Notifications.getExpoPushTokenAsync({ projectId }).catch(() => null);
+        if (tokenData?.data) {
+          setDeviceToken(tokenData.data);
+          const { data } = await supabase.from('push_tokens').select('notify_live_scores, notify_gameday_reminders, notify_events').eq('token', tokenData.data).single();
+          if (data) {
+            setNotifyLiveScores(data.notify_live_scores ?? true);
+            setNotifyGamedayReminders(data.notify_gameday_reminders ?? true);
+            setNotifyEvents(data.notify_events ?? true);
+          }
+        }
+      } catch (e) {}
+    }
+    loadNotificationPrefs();
+  }, []);
+
+  const handleUpdatePref = async (key: string, value: boolean) => {
+    if (!deviceToken) return;
+    await supabase.from('push_tokens').update({ [key]: value, updated_at: new Date().toISOString() }).eq('token', deviceToken);
+  };
   const [gamesExpanded, setGamesExpanded] = useState(false);
 
-  // Profile Form Fields
   const [username, setUsername] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -76,33 +105,31 @@ export default function AccountScreen() {
   const [emailInput, setEmailInput] = useState('');
   const [dob, setDob] = useState('');
 
-  // STM Fields
   const [isSTM, setIsSTM] = useState(false);
   const [sectionNum, setSectionNum] = useState('');
   const [rowNum, setRowNum] = useState('');
   const [seatNum, setSeatNum] = useState('');
 
-  // Dropdown Picker Modal State
   const [pickerVisible, setPickerVisible] = useState(false);
   const [pickerTitle, setPickerTitle] = useState('');
   const [pickerData, setPickerData] = useState<string[]>([]);
   const [pickerSelected, setPickerSelected] = useState<string>('');
   const [pickerOnSelect, setPickerOnSelect] = useState<(val: string) => void>(() => () => {});
 
-  const [highScore, setHighScore] = useState(0);
+  const [puckDropHigh, setPuckDropHigh] = useState(0);
+  const [zamboniHigh, setZamboniHigh] = useState(0);
+  const [frenzyHigh, setFrenzyHigh] = useState(0);
+  const [loadingArcadeScores, setLoadingArcadeScores] = useState(false);
 
-  // Phone SMS Auth States
   const [authPhone, setAuthPhone] = useState('');
   const [otp, setOtp] = useState('');
   const [step, setStep] = useState<'PHONE' | 'OTP'>('PHONE');
 
-  // Delete Account Modal States
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [deleteInputText, setDeleteInputText] = useState('');
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
-    // 🌐 Configure Native Google Sign-In with both Android/Web and iOS Client IDs
     GoogleSignin.configure({
       scopes: ['email', 'profile'],
       webClientId: '766194485121-p51pktavs4t1rbcti5t5nnbs5taftunk.apps.googleusercontent.com',
@@ -138,7 +165,8 @@ export default function AccountScreen() {
       .single();
 
     if (data && !error) {
-      setUsername(data.username || (data.email ? data.email.split('@')[0] : 'Supporter108'));
+      const activeUser = data.username || (data.email ? data.email.split('@')[0] : 'Supporter108');
+      setUsername(activeUser);
       setFirstName(data.first_name || '');
       setLastName(data.last_name || '');
       setPhoneInput(data.phone || user.phone || '');
@@ -148,14 +176,63 @@ export default function AccountScreen() {
       setSectionNum(data.section_number || '');
       setRowNum(data.row_number || '');
       setSeatNum(data.seat_number || '');
-      setHighScore(data.puck_drop_high_score || data.high_score || 0);
+
+      if (data.puckdrop_high_score !== undefined) setPuckDropHigh(data.puckdrop_high_score || 0);
+      if (data.zambonidash_high_score !== undefined) setZamboniHigh(data.zambonidash_high_score || 0);
+      if (data.frenzyshot_high_score !== undefined) setFrenzyHigh(data.frenzyshot_high_score || 0);
+
+      fetchArcadeScores(user, activeUser, data.puckdrop_high_score || 0, data.zambonidash_high_score || 0, data.frenzyshot_high_score || 0);
     } else {
       const defaultName = user.email ? user.email.split('@')[0] : 'Supporter108';
       setUsername(defaultName);
       setEmailInput(user.email || '');
       setPhoneInput(user.phone || '');
+      fetchArcadeScores(user, defaultName, 0, 0, 0);
     }
     setLoading(false);
+  };
+
+  const fetchArcadeScores = async (user: any, userHandle: string, fallbackPuck = 0, fallbackZam = 0, fallbackFrenzy = 0) => {
+    setLoadingArcadeScores(true);
+    try {
+      let query = supabase.from('arcade_high_scores').select('game_type, score, team_played, user_id, initials');
+
+      if (user?.id) {
+        query = query.or(`user_id.eq.${user.id},initials.eq.${userHandle.substring(0, 4).toUpperCase()}`);
+      } else {
+        const cleanHandle = userHandle.trim().toUpperCase();
+        query = query.eq('initials', cleanHandle.substring(0, 4));
+      }
+
+      const { data, error } = await query;
+
+      let maxPuck = fallbackPuck;
+      let maxZam = fallbackZam;
+      let maxFrenzy = fallbackFrenzy;
+
+      if (!error && Array.isArray(data)) {
+        data.forEach((row) => {
+          const gameType = row.game_type?.toUpperCase();
+          const team = row.team_played?.toUpperCase() || '';
+
+          if (gameType === 'PUCK_DROP' || (!gameType && !team.startsWith('ZAM') && !team.startsWith('FRENZY') && team !== 'CATCH')) {
+            if (row.score > maxPuck) maxPuck = row.score;
+          } else if (gameType === 'ZAMBONI_DASH' || team.startsWith('ZAM')) {
+            if (row.score > maxZam) maxZam = row.score;
+          } else if (gameType === 'FRENZY_SHOT' || team.startsWith('FRENZY')) {
+            if (row.score > maxFrenzy) maxFrenzy = row.score;
+          }
+        });
+      }
+
+      setPuckDropHigh(maxPuck);
+      setZamboniHigh(maxZam);
+      setFrenzyHigh(maxFrenzy);
+    } catch (e) {
+      console.warn('Error retrieving high scores:', e);
+    } finally {
+      setLoadingArcadeScores(false);
+    }
   };
 
   const handleSaveProfile = async () => {
@@ -187,6 +264,7 @@ export default function AccountScreen() {
     } else {
       setUsername(generatedUsername);
       Alert.alert('Success! 🪸', 'Your Battery Pack profile and seat details have been updated.');
+      fetchArcadeScores(session.user, generatedUsername, puckDropHigh);
     }
   };
 
@@ -253,11 +331,10 @@ export default function AccountScreen() {
       setLoading(true);
       await GoogleSignin.hasPlayServices();
       const response = await GoogleSignin.signIn();
-      const idToken = response.data?.idToken || (response as any).idToken;
+      const idToken = (response as any).data?.idToken || (response as any).idToken;
 
       if (!idToken) throw new Error('No ID token received from Google');
 
-      // Extract internal nonce if Google embedded one in the JWT on iOS/iPadOS
       const extractedNonce = extractNonceFromJwt(idToken);
 
       const authPayload: { provider: 'google'; token: string; nonce?: string } = {
@@ -362,14 +439,13 @@ export default function AccountScreen() {
       setDeleting(true);
       const userId = session.user.id;
 
-      // 1. Wipe user records across tables
       await supabase.from('chat_messages').delete().eq('user_id', userId);
       await supabase.from('fan_gallery').delete().eq('user_id', userId);
       await supabase.from('gallery_likes').delete().eq('user_id', userId);
       await supabase.from('poll_votes').delete().eq('user_id', userId);
+      await supabase.from('arcade_high_scores').delete().eq('user_id', userId);
       await supabase.from('profiles').delete().eq('id', userId);
 
-      // 2. Clear Google & Supabase sessions
       await supabase.auth.signOut();
       try {
         await GoogleSignin.signOut();
@@ -391,8 +467,8 @@ export default function AccountScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
-      <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.cardBg} />
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]} edges={['left', 'right']}>
+      <StatusBar style={theme.isDark ? 'light' : 'dark'} />
 
       <ScrollView contentContainerStyle={styles.contentPadding}>
         {session ? (
@@ -402,7 +478,7 @@ export default function AccountScreen() {
               <Text style={[styles.headerSub, { color: theme.subText }]}>Personal Profile 🪸</Text>
             </View>
 
-            {/* 1. Basic Information Accordion */}
+            {/* 1. Basic Information */}
             <TouchableOpacity
               style={[styles.accordionHeader, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
               onPress={() => setProfileExpanded(!profileExpanded)}
@@ -479,7 +555,66 @@ export default function AccountScreen() {
               </View>
             )}
 
-            {/* 2. Season Ticket Holder (STM) Accordion */}
+            
+            {/* 1.5 Notification Settings */}
+            <TouchableOpacity
+              style={[styles.accordionHeader, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
+              onPress={() => setNotificationsExpanded(!notificationsExpanded)}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.accordionTitle, { color: theme.text }]}>🔔 Notification Preferences</Text>
+              <Text style={[styles.accordionIcon, { color: theme.accentGold }]}>{notificationsExpanded ? '▼' : '▶'}</Text>
+            </TouchableOpacity>
+
+            {notificationsExpanded && (
+              <View style={[styles.accordionContent, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                <Text style={[styles.hintText, { color: theme.subText, marginBottom: 12, textAlign: 'left', marginTop: 0 }]}>
+                  Silence live goal alerts if you are watching the action live at Tech CU Arena.
+                </Text>
+
+                <View style={styles.switchRow}>
+                  <View style={{ flex: 1, paddingRight: 10 }}>
+                    <Text style={[styles.label, { color: theme.text, marginBottom: 2 }]}>Live Goals & Score Updates</Text>
+                    <Text style={{ color: theme.subText, fontSize: 11 }}>Puck drops, Barracuda goals, and period summaries</Text>
+                  </View>
+                  <Switch
+                    value={notifyLiveScores}
+                    onValueChange={(val) => { setNotifyLiveScores(val); handleUpdatePref('notify_live_scores', val); }}
+                    thumbColor={theme.accentGold}
+                    trackColor={{ false: '#CCD6D8', true: '#00424A' }}
+                  />
+                </View>
+
+                <View style={[styles.switchRow, { marginTop: 12 }]}>
+                  <View style={{ flex: 1, paddingRight: 10 }}>
+                    <Text style={[styles.label, { color: theme.text, marginBottom: 2 }]}>Gameday Morning Reminders</Text>
+                    <Text style={{ color: theme.subText, fontSize: 11 }}>9:00 AM matchup & 'Know Before You Go' info</Text>
+                  </View>
+                  <Switch
+                    value={notifyGamedayReminders}
+                    onValueChange={(val) => { setNotifyGamedayReminders(val); handleUpdatePref('notify_gameday_reminders', val); }}
+                    thumbColor={theme.accentGold}
+                    trackColor={{ false: '#CCD6D8', true: '#00424A' }}
+                  />
+                </View>
+
+                <View style={[styles.switchRow, { marginTop: 12 }]}>
+                  <View style={{ flex: 1, paddingRight: 10 }}>
+                    <Text style={[styles.label, { color: theme.text, marginBottom: 2 }]}>Events & Tabling Alerts</Text>
+                    <Text style={{ color: theme.subText, fontSize: 11 }}>Concourse tabling, rallies, and post-game group photos</Text>
+                  </View>
+                  <Switch
+                    value={notifyEvents}
+                    onValueChange={(val) => { setNotifyEvents(val); handleUpdatePref('notify_events', val); }}
+                    thumbColor={theme.accentGold}
+                    trackColor={{ false: '#CCD6D8', true: '#00424A' }}
+                  />
+                </View>
+              </View>
+            )}
+
+
+            {/* 2. Season Ticket Holder */}
             <TouchableOpacity
               style={[styles.accordionHeader, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
               onPress={() => setStmExpanded(!stmExpanded)}
@@ -511,7 +646,6 @@ export default function AccountScreen() {
                     </Text>
 
                     <View style={styles.seatRow}>
-                      {/* Section Dropdown */}
                       <View style={{ flex: 1, marginRight: 4 }}>
                         <Text style={[styles.label, { color: theme.subText }]}>Section</Text>
                         <TouchableOpacity
@@ -525,7 +659,6 @@ export default function AccountScreen() {
                         </TouchableOpacity>
                       </View>
 
-                      {/* Row Dropdown */}
                       <View style={{ flex: 1, marginHorizontal: 4 }}>
                         <Text style={[styles.label, { color: theme.subText }]}>Row</Text>
                         <TouchableOpacity
@@ -539,7 +672,6 @@ export default function AccountScreen() {
                         </TouchableOpacity>
                       </View>
 
-                      {/* Seat Dropdown */}
                       <View style={{ flex: 1, marginLeft: 4 }}>
                         <Text style={[styles.label, { color: theme.subText }]}>Seat</Text>
                         <TouchableOpacity
@@ -558,7 +690,7 @@ export default function AccountScreen() {
               </View>
             )}
 
-            {/* 3. Arcade High Scores Accordion */}
+            {/* 3. Personal Arcade High Scores */}
             <TouchableOpacity
               style={[styles.accordionHeader, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
               onPress={() => setGamesExpanded(!gamesExpanded)}
@@ -570,15 +702,33 @@ export default function AccountScreen() {
 
             {gamesExpanded && (
               <View style={[styles.accordionContent, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
-                <View style={[styles.scoreRow, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}>
-                  <Text style={[styles.scoreLabel, { color: theme.text }]}>🏒 Puck Drop Personal Best:</Text>
-                  <Text style={[styles.scoreValue, { color: theme.accentGold }]}>{highScore} pts</Text>
-                </View>
-                <Text style={[styles.hintText, { color: theme.subText }]}>Keep playing to climb the Pack Leaderboard!</Text>
+                {loadingArcadeScores ? (
+                  <ActivityIndicator color={theme.accentGold} style={{ paddingVertical: 12 }} />
+                ) : (
+                  <View style={{ gap: 8 }}>
+                    <View style={[styles.scoreRow, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}>
+                      <Text style={[styles.scoreLabel, { color: theme.text }]}>🏒 Puck Drop (Air Hockey):</Text>
+                      <Text style={[styles.scoreValue, { color: theme.accentGold }]}>{puckDropHigh} Goals</Text>
+                    </View>
+
+                    <View style={[styles.scoreRow, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}>
+                      <Text style={[styles.scoreLabel, { color: theme.text }]}>🛞 Zamboni Dash:</Text>
+                      <Text style={[styles.scoreValue, { color: '#00E5FF' }]}>{zamboniHigh} Pts</Text>
+                    </View>
+
+                    <View style={[styles.scoreRow, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}>
+                      <Text style={[styles.scoreLabel, { color: theme.text }]}>🥅 Frenzy Shootout:</Text>
+                      <Text style={[styles.scoreValue, { color: '#00FFCC' }]}>{frenzyHigh} Pts</Text>
+                    </View>
+                  </View>
+                )}
+                <Text style={[styles.hintText, { color: theme.subText }]}>
+                  Displays your personal all-time best score record for each game!
+                </Text>
               </View>
             )}
 
-            {/* 4. Save Profile Updates Button */}
+            {/* 4. Save Button */}
             <TouchableOpacity
               style={[styles.saveProfileBtn, { backgroundColor: theme.accentOrange }]}
               onPress={handleSaveProfile}
@@ -591,7 +741,7 @@ export default function AccountScreen() {
               )}
             </TouchableOpacity>
 
-            {/* 5. Account Security & Sign Out Actions */}
+            {/* 5. Account Actions */}
             <View style={styles.accountActionWrapper}>
               <TouchableOpacity
                 style={styles.deleteAccountBtn}
@@ -609,7 +759,6 @@ export default function AccountScreen() {
             </View>
           </>
         ) : (
-          /* ======================== 🔐 LOGGED OUT AUTH VIEW ======================== */
           <View style={[styles.authCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
             <Text style={[styles.authHeader, { color: theme.accentGold }]}>🦈 SJ BATTERY PACK ACCESS</Text>
             <Text style={[styles.authSub, { color: theme.subText }]}>
@@ -690,7 +839,6 @@ export default function AccountScreen() {
         )}
       </ScrollView>
 
-      {/* 📋 Dropdown Selection Modal */}
       <Modal visible={pickerVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={[styles.pickerModalContent, { backgroundColor: theme.cardBg, borderColor: theme.accentGold }]}>
@@ -732,7 +880,6 @@ export default function AccountScreen() {
         </View>
       </Modal>
 
-      {/* ⚠️ DELETE ACCOUNT CONFIRMATION MODAL */}
       <Modal
         visible={deleteModalVisible}
         transparent={true}
@@ -815,10 +962,10 @@ const styles = StyleSheet.create({
   input: { padding: 12, borderRadius: 10, borderWidth: 1, fontSize: 14, fontWeight: '700', marginBottom: 12 },
   saveProfileBtn: { padding: 14, borderRadius: 12, alignItems: 'center', marginTop: 14, marginBottom: 10 },
   saveProfileBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '900', letterSpacing: 0.5 },
-  scoreRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14, borderRadius: 10, borderWidth: 1 },
-  scoreLabel: { fontSize: 14, fontWeight: '700' },
-  scoreValue: { fontSize: 18, fontWeight: '900' },
-  hintText: { fontSize: 11, marginTop: 8, fontStyle: 'italic', textAlign: 'center' },
+  scoreRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12, borderRadius: 10, borderWidth: 1 },
+  scoreLabel: { fontSize: 13, fontWeight: '700' },
+  scoreValue: { fontSize: 16, fontWeight: '900' },
+  hintText: { fontSize: 11, marginTop: 10, fontStyle: 'italic', textAlign: 'center' },
   accountActionWrapper: { gap: 10, marginTop: 8 },
   deleteAccountBtn: { padding: 14, backgroundColor: 'rgba(231, 76, 60, 0.12)', borderWidth: 1, borderColor: '#e74c3c', borderRadius: 10, alignItems: 'center' },
   deleteAccountText: { color: '#e74c3c', fontWeight: '900', fontSize: 14 },

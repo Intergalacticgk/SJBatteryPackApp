@@ -5,8 +5,6 @@ import {
   View,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
-  StatusBar,
   Modal,
   TextInput,
   Alert,
@@ -18,11 +16,13 @@ import {
   Platform,
   KeyboardAvoidingView,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { Image } from 'expo-image';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system/legacy';
-import * as MediaLibrary from 'expo-media-library/legacy';
+import * as FileSystem from 'expo-file-system';
+import * as MediaLibrary from 'expo-media-library';
 import { useAppTheme } from '../../context/ThemeContext';
 import { supabase } from '../../supabase';
 
@@ -30,7 +30,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const GRID_COLUMNS = 3;
 const GRID_ITEM_SIZE = (SCREEN_WIDTH - 40) / GRID_COLUMNS;
 
-type FanZoneTab = 'CHANTS' | 'GALLERY' | 'CHAT';
+type FanZoneTab = 'CHANTS' | 'GALLERY' | 'CHAT' | 'GAMES';
 
 interface ChantItem {
   id: string;
@@ -117,12 +117,12 @@ export default function FanzoneScreen() {
   const { theme } = useAppTheme();
   const router = useRouter();
   const params = useLocalSearchParams();
+  const insets = useSafeAreaInsets();
 
   const [activeTab, setActiveTab] = useState<FanZoneTab>(
-    params.tab === 'GALLERY' ? 'GALLERY' : params.tab === 'CHAT' ? 'CHAT' : 'CHANTS'
+    params.tab === 'GALLERY' ? 'GALLERY' : params.tab === 'CHAT' ? 'CHAT' : params.tab === 'GAMES' ? 'GAMES' : 'CHANTS'
   );
 
-  // --- Chants State ---
   const [activeCategory, setActiveCategory] = useState<string>('ALL');
   const [modalVisible, setModalVisible] = useState(false);
   const [chantTitle, setChantTitle] = useState('');
@@ -131,7 +131,6 @@ export default function FanzoneScreen() {
   const [submittingChant, setSubmittingChant] = useState(false);
   const chantCategories = ['ALL', 'GENERAL', 'CALL & RESPONSE', 'ARENA TRADITION'];
 
-  // --- Gallery State ---
   const [viewMode, setViewMode] = useState<'TIMELINE' | 'GRID'>('TIMELINE');
   const [photos, setPhotos] = useState<GalleryPhoto[]>([]);
   const [galleryLoading, setGalleryLoading] = useState(true);
@@ -141,7 +140,6 @@ export default function FanzoneScreen() {
   const [optionsMenuVisible, setOptionsMenuVisible] = useState(false);
   const [downloading, setDownloading] = useState(false);
 
-  // Gallery Comments State
   const [commentsModalVisible, setCommentsModalVisible] = useState(false);
   const [activeCommentPhoto, setActiveCommentPhoto] = useState<GalleryPhoto | null>(null);
   const [comments, setComments] = useState<PhotoComment[]>([]);
@@ -149,12 +147,12 @@ export default function FanzoneScreen() {
   const [newCommentText, setNewCommentText] = useState('');
   const [postingComment, setPostingComment] = useState(false);
 
-  // Collapsible Month Keys
   const [collapsedMonths, setCollapsedMonths] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (params.tab === 'GALLERY') setActiveTab('GALLERY');
     else if (params.tab === 'CHAT') setActiveTab('CHAT');
+    else if (params.tab === 'GAMES') setActiveTab('GAMES');
   }, [params.tab]);
 
   useEffect(() => {
@@ -310,7 +308,7 @@ export default function FanzoneScreen() {
         },
       ]);
 
-      Alert.alert('Success! 📸', 'Your photo has been posted to Section 108 Reef Gallery.');
+      Alert.alert('Success! 📸', 'Your photo has been posted to The Reef Gallery.');
       fetchGallery();
     } catch (err: any) {
       Alert.alert('Upload Failed', err.message || 'Could not upload photo.');
@@ -331,7 +329,7 @@ export default function FanzoneScreen() {
       const cleanUrl = photo.image_url.split('?')[0];
       const ext = cleanUrl.split('.').pop() || 'jpg';
       const filename = `cuda_fan_${Date.now()}.${ext}`;
-      const localUri = `${FileSystem.cacheDirectory}${filename}`;
+      const localUri = `${(FileSystem as any).cacheDirectory}${filename}`;
 
       const downloadRes = await FileSystem.downloadAsync(photo.image_url, localUri);
 
@@ -479,7 +477,7 @@ export default function FanzoneScreen() {
   const handleShare = async (photo: GalleryPhoto) => {
     try {
       await Share.share({
-        message: `Check out this Barracuda supporter photo by ${photo.username} in Section 108!\n${photo.image_url}`,
+        message: `Check out this Barracuda supporter photo by ${photo.username} at TechCU Arena!\n${photo.image_url}`,
       });
     } catch {}
   };
@@ -505,7 +503,7 @@ export default function FanzoneScreen() {
       const { error } = await supabase.from('chant_submissions').insert([payload]);
       if (error) throw error;
 
-      Alert.alert('Chant Submitted! 📢', 'Thanks for fueling Section 108! Your idea has been sent directly to the Battery Pack team.');
+      Alert.alert('Chant Submitted! 📢', 'Thanks for fueling SJ Battery Pack! Your idea has been sent directly to the team.');
       setModalVisible(false);
       setChantTitle('');
       setChantLyrics('');
@@ -522,8 +520,8 @@ export default function FanzoneScreen() {
     : CHANTS_LIST.filter((c) => c.category === activeCategory);
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
-      <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.cardBg} />
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]} edges={['left', 'right']}>
+      <StatusBar style={theme.isDark ? 'light' : 'dark'} />
 
       {/* Segmented Top Tab Bar */}
       <View style={[styles.topTabBar, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
@@ -531,7 +529,11 @@ export default function FanzoneScreen() {
           style={[styles.topTabButton, activeTab === 'CHANTS' && { backgroundColor: theme.accentGold }]}
           onPress={() => setActiveTab('CHANTS')}
         >
-          <Text style={[styles.topTabText, { color: activeTab === 'CHANTS' ? '#001417' : theme.subText }]}>
+          <Text 
+            numberOfLines={1} 
+            adjustsFontSizeToFit 
+            style={[styles.topTabText, { color: activeTab === 'CHANTS' ? '#001417' : theme.subText }]}
+          >
             🗣️ Chants
           </Text>
         </TouchableOpacity>
@@ -540,8 +542,25 @@ export default function FanzoneScreen() {
           style={[styles.topTabButton, activeTab === 'GALLERY' && { backgroundColor: theme.accentGold }]}
           onPress={() => setActiveTab('GALLERY')}
         >
-          <Text style={[styles.topTabText, { color: activeTab === 'GALLERY' ? '#001417' : theme.subText }]}>
+          <Text 
+            numberOfLines={1} 
+            adjustsFontSizeToFit 
+            style={[styles.topTabText, { color: activeTab === 'GALLERY' ? '#001417' : theme.subText }]}
+          >
             📸 Gallery
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.topTabButton, activeTab === 'GAMES' && { backgroundColor: theme.accentGold }]}
+          onPress={() => setActiveTab('GAMES')}
+        >
+          <Text 
+            numberOfLines={1} 
+            adjustsFontSizeToFit 
+            style={[styles.topTabText, { color: activeTab === 'GAMES' ? '#001417' : theme.subText }]}
+          >
+            🎮 Games
           </Text>
         </TouchableOpacity>
 
@@ -549,7 +568,11 @@ export default function FanzoneScreen() {
           style={[styles.topTabButton, activeTab === 'CHAT' && { backgroundColor: theme.accentGold }]}
           onPress={() => setActiveTab('CHAT')}
         >
-          <Text style={[styles.topTabText, { color: activeTab === 'CHAT' ? '#001417' : theme.subText }]}>
+          <Text 
+            numberOfLines={1} 
+            adjustsFontSizeToFit 
+            style={[styles.topTabText, { color: activeTab === 'CHAT' ? '#001417' : theme.subText }]}
+          >
             💬 Chat
           </Text>
         </TouchableOpacity>
@@ -557,11 +580,11 @@ export default function FanzoneScreen() {
 
       {/* TAB 1: 🗣️ CHANTS */}
       {activeTab === 'CHANTS' && (
-        <ScrollView contentContainerStyle={styles.scrollPadding}>
+        <ScrollView contentContainerStyle={[styles.scrollPadding, { paddingBottom: Math.max(insets.bottom + 20, 40) }]}>
           <View style={[styles.headerBanner, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}>
-            <Text style={[styles.bannerTitle, { color: theme.accentGold }]}>SECTION 108 CHANTS</Text>
+            <Text style={[styles.bannerTitle, { color: theme.accentGold }]}>SJ BATTERY PACK CHANTS</Text>
             <Text style={[styles.bannerSubtitle, { color: theme.text }]}>
-              The Official Songbook & Traditions of the SJ Battery Pack 🪸
+              The Official Songbook & Traditions 🪸
             </Text>
           </View>
 
@@ -628,7 +651,7 @@ export default function FanzoneScreen() {
         </ScrollView>
       )}
 
-      {/* TAB 2: 📸 FULLY FEATURED GALLERY */}
+      {/* TAB 2: 📸 GALLERY */}
       {activeTab === 'GALLERY' && (
         <View style={{ flex: 1 }}>
           <View style={[styles.galleryHeaderBar, { backgroundColor: theme.cardBg, borderBottomColor: theme.borderColor }]}>
@@ -660,7 +683,7 @@ export default function FanzoneScreen() {
             <FlatList
               data={photos}
               keyExtractor={(item) => item.id}
-              contentContainerStyle={styles.timelinePadding}
+              contentContainerStyle={[styles.timelinePadding, { paddingBottom: Math.max(insets.bottom + 70, 90) }]}
               renderItem={({ item }) => (
                 <View style={[styles.timelineCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
                   <View style={styles.cardHeader}>
@@ -718,13 +741,15 @@ export default function FanzoneScreen() {
             <SectionList
               sections={albumSections}
               keyExtractor={(row, index) => `${row[0]?.id || ''}_${index}`}
-              contentContainerStyle={styles.gridContainerPadding}
+              contentContainerStyle={[styles.gridContainerPadding, { paddingBottom: Math.max(insets.bottom + 70, 90) }]}
               stickySectionHeadersEnabled={false}
               renderSectionHeader={({ section }) => {
                 const isCollapsed = !!collapsedMonths[section.title];
                 return (
                   <TouchableOpacity
-                    style={[styles.albumHeader, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}>
+                    style={[styles.albumHeader, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}
+                    onPress={() => toggleMonthCollapse(section.title)}
+                  >
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                       <Text style={[styles.albumTitle, { color: theme.accentGold }]}>📅 {section.title}</Text>
                       <Text style={[styles.albumBadge, { color: theme.subText }]}>({section.count} photos)</Text>
@@ -767,7 +792,13 @@ export default function FanzoneScreen() {
 
           {/* Floating Upload Button */}
           <TouchableOpacity
-            style={[styles.floatingAddBtn, { backgroundColor: theme.accentGold }]}
+            style={[
+              styles.floatingAddBtn,
+              { 
+                backgroundColor: theme.accentGold, 
+                bottom: Math.max(insets.bottom + 16, 24) 
+              }
+            ]}
             activeOpacity={0.85}
             onPress={handleUploadPhoto}
             disabled={uploadingPhoto}
@@ -777,9 +808,107 @@ export default function FanzoneScreen() {
         </View>
       )}
 
-      {/* TAB 3: 💬 CHAT DIRECT ENTRY */}
+      {/* TAB 3: 🎮 MINI GAMES ARCADE HUB */}
+      {activeTab === 'GAMES' && (
+        <ScrollView contentContainerStyle={[styles.scrollPadding, { paddingBottom: Math.max(insets.bottom + 20, 40) }]}>
+          <View style={[styles.headerBanner, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}>
+            <Text style={[styles.bannerTitle, { color: theme.accentGold }]}>🎮 SJ Battery Pack Arcade</Text>
+            <Text style={[styles.bannerSubtitle, { color: theme.text }]}>
+              Play intermission games & climb the Leaderboards!
+            </Text>
+          </View>
+
+          {/* 1. Puck Drop */}
+          <TouchableOpacity
+            style={[styles.gameCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
+            onPress={() => router.push('/game/puckdrop')}
+            activeOpacity={0.85}
+          >
+            <View style={styles.gameCardHeader}>
+              <Text style={styles.gameCardIcon}>🏒</Text>
+              <View style={styles.gameTextContainer}>
+                <Text style={[styles.gameCardTitle, { color: theme.accentGold }]}>Puck Drop (Air Hockey)</Text>
+                <Text style={[styles.gameCardSub, { color: theme.subText }]} numberOfLines={2}>
+                  Battle Pacific Division rivals in 60s regulation or Sudden Death OT!
+                </Text>
+              </View>
+              <View style={styles.gameActionContainer}>
+                <Text style={[styles.gameCardAction, { color: theme.accentOrange }]}>Play ➔</Text>
+              </View>
+            </View>
+          </TouchableOpacity>
+
+          {/* 2. Zamboni Dash */}
+          <TouchableOpacity
+            style={[styles.gameCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
+            onPress={() => router.push('/game/zambonidash')}
+            activeOpacity={0.85}
+          >
+            <View style={styles.gameCardHeader}>
+              <Text style={styles.gameCardIcon}>🛞</Text>
+              <View style={styles.gameTextContainer}>
+                <Text style={[styles.gameCardTitle, { color: theme.accentGold }]}>Zamboni Dash</Text>
+                <Text style={[styles.gameCardSub, { color: theme.subText }]} numberOfLines={2}>
+                  Drive up the ice collecting Teal Gems while dodging stray hockey sticks!
+                </Text>
+              </View>
+              <View style={styles.gameActionContainer}>
+                <Text style={[styles.gameCardAction, { color: theme.accentOrange }]}>Play ➔</Text>
+              </View>
+            </View>
+          </TouchableOpacity>
+
+          {/* 3. Frenzy's Penalty Shot */}
+          <TouchableOpacity
+            style={[styles.gameCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
+            onPress={() => router.push('/game/frenzyshot')}
+            activeOpacity={0.85}
+          >
+            <View style={styles.gameCardHeader}>
+              <Text style={styles.gameCardIcon}>🥅</Text>
+              <View style={styles.gameTextContainer}>
+                <Text style={[styles.gameCardTitle, { color: theme.accentGold }]}>Frenzy's Penalty Shot</Text>
+                <Text style={[styles.gameCardSub, { color: theme.subText }]} numberOfLines={2}>
+                  Test your accuracy in a 5-shot shootout against the mascot goalie!
+                </Text>
+              </View>
+              <View style={styles.gameActionContainer}>
+                <Text style={[styles.gameCardAction, { color: theme.accentOrange }]}>Play ➔</Text>
+              </View>
+            </View>
+          </TouchableOpacity>
+
+          {/* 4. The Great Cuda Catch - Disabled & Grayed Out */}
+          <TouchableOpacity
+            style={[
+              styles.gameCard,
+              styles.disabledGameCard,
+              { backgroundColor: theme.cardBg, borderColor: theme.borderColor }
+            ]}
+            disabled={true}
+            activeOpacity={1}
+          >
+            <View style={styles.gameCardHeader}>
+              <Text style={[styles.gameCardIcon, styles.disabledIcon]}>🪸</Text>
+              <View style={styles.gameTextContainer}>
+                <Text style={[styles.gameCardTitle, styles.disabledText]}>The Great Cuda Catch</Text>
+                <Text style={[styles.gameCardSub, styles.disabledSubText]} numberOfLines={2}>
+                  Slide your catcher's mitt to catch good fan gear while dodging bad items!
+                </Text>
+              </View>
+              <View style={styles.gameActionContainer}>
+                <View style={[styles.soonBadge, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}>
+                  <Text style={[styles.soonBadgeText, { color: theme.subText }]}>SOON</Text>
+                </View>
+              </View>
+            </View>
+          </TouchableOpacity>
+        </ScrollView>
+      )}
+
+      {/* TAB 4: 💬 CHAT DIRECT ENTRY */}
       {activeTab === 'CHAT' && (
-        <View style={styles.chatGateContainer}>
+        <View style={[styles.chatGateContainer, { paddingBottom: Math.max(insets.bottom + 20, 24) }]}>
           <View style={[styles.chatGateCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
             <Text style={{ fontSize: 48, marginBottom: 12 }}>💬</Text>
             <Text style={[styles.chatGateTitle, { color: theme.accentGold }]}>SJ Battery Pack Chat</Text>
@@ -926,7 +1055,7 @@ export default function FanzoneScreen() {
               style={styles.fullscreenImage}
             />
 
-            <View style={styles.modalBottomBar}>
+            <View style={[styles.modalBottomBar, { paddingBottom: Math.max(insets.bottom + 12, 20) }]}>
               <View>
                 <Text style={styles.modalUsername}>Uploaded by {selectedPhoto.username}</Text>
                 <Text style={styles.modalDate}>{new Date(selectedPhoto.created_at).toLocaleDateString()}</Text>
@@ -1014,7 +1143,16 @@ export default function FanzoneScreen() {
               />
             )}
 
-            <View style={[styles.commentInputRow, { backgroundColor: theme.subCardBg, borderTopColor: theme.borderColor }]}>
+            <View 
+              style={[
+                styles.commentInputRow, 
+                { 
+                  backgroundColor: theme.subCardBg, 
+                  borderTopColor: theme.borderColor,
+                  paddingBottom: Math.max(insets.bottom, 10)
+                }
+              ]}
+            >
               <TextInput
                 style={[styles.commentInput, { color: theme.text, backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
                 placeholder="Write a comment..."
@@ -1043,9 +1181,26 @@ export default function FanzoneScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  topTabBar: { flexDirection: 'row', padding: 6, marginHorizontal: 12, marginTop: 8, borderRadius: 12, borderWidth: 1 },
-  topTabButton: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 8 },
-  topTabText: { fontSize: 13, fontWeight: '800' },
+  topTabBar: { 
+    flexDirection: 'row', 
+    padding: 4, 
+    marginHorizontal: 10, 
+    marginTop: 8, 
+    borderRadius: 12, 
+    borderWidth: 1 
+  },
+  topTabButton: { 
+    flex: 1, 
+    paddingVertical: 8, 
+    paddingHorizontal: 2, 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    borderRadius: 8 
+  },
+  topTabText: { 
+    fontSize: 11.5, 
+    fontWeight: '800' 
+  },
   scrollPadding: { padding: 14, paddingBottom: 40 },
   centerBox: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   headerBanner: { paddingVertical: 14, paddingHorizontal: 16, borderRadius: 14, marginBottom: 10, borderWidth: 1, alignItems: 'center' },
@@ -1071,13 +1226,26 @@ const styles = StyleSheet.create({
   tempoText: { fontSize: 11 },
   tipText: { fontSize: 11, fontStyle: 'italic' },
 
-  // Gallery Header
+  gameCard: { borderRadius: 14, borderWidth: 1, padding: 16, marginBottom: 12 },
+  disabledGameCard: { opacity: 0.55 },
+  gameCardHeader: { flexDirection: 'row', alignItems: 'center' },
+  gameCardIcon: { fontSize: 32 },
+  disabledIcon: { opacity: 0.6 },
+  gameTextContainer: { flex: 1, marginLeft: 12, marginRight: 10 },
+  gameCardTitle: { fontSize: 15, fontWeight: '900' },
+  gameCardSub: { fontSize: 11, fontWeight: '600', marginTop: 2, lineHeight: 16 },
+  disabledText: { color: '#80B3B8' },
+  disabledSubText: { color: '#557A80' },
+  gameActionContainer: { justifyContent: 'center', alignItems: 'flex-end', minWidth: 55 },
+  gameCardAction: { fontSize: 13, fontWeight: '900' },
+  soonBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1 },
+  soonBadgeText: { fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
+
   galleryHeaderBar: { padding: 10, borderBottomWidth: 1, alignItems: 'center' },
   viewToggle: { flexDirection: 'row', backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: 20, padding: 3 },
   togglePill: { paddingHorizontal: 16, paddingVertical: 6, borderRadius: 16 },
   toggleText: { fontSize: 12, fontWeight: '800' },
 
-  // Timeline Styles
   timelinePadding: { padding: 14, paddingBottom: 80 },
   timelineCard: { borderRadius: 14, borderWidth: 1, marginBottom: 14, overflow: 'hidden' },
   avatarBadge: { width: 34, height: 34, borderRadius: 17, justifyContent: 'center', alignItems: 'center' },
@@ -1089,7 +1257,6 @@ const styles = StyleSheet.create({
   likeCount: { fontSize: 13, fontWeight: '800' },
   monthPill: { fontSize: 11, fontWeight: '800' },
 
-  // SectionList Grid Styles with Badge Overlays
   gridContainerPadding: { paddingHorizontal: 12, paddingBottom: 90 },
   albumHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 12, borderRadius: 10, borderWidth: 1, marginTop: 12, marginBottom: 8 },
   albumTitle: { fontSize: 14, fontWeight: '900' },
@@ -1110,10 +1277,9 @@ const styles = StyleSheet.create({
   },
   gridBadgeText: { color: '#FFFFFF', fontSize: 9, fontWeight: '800' },
 
-  floatingAddBtn: { position: 'absolute', bottom: 20, right: 20, width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center', elevation: 6 },
+  floatingAddBtn: { position: 'absolute', right: 20, width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center', elevation: 6 },
   floatingAddBtnText: { color: '#001417', fontSize: 32, fontWeight: '900', marginTop: -2 },
 
-  // Chat Gate
   chatGateContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
   chatGateCard: { width: '100%', padding: 26, borderRadius: 16, borderWidth: 1, alignItems: 'center' },
   chatGateTitle: { fontSize: 18, fontWeight: '900', letterSpacing: 0.5 },
@@ -1121,7 +1287,6 @@ const styles = StyleSheet.create({
   chatGateButton: { width: '100%', paddingVertical: 14, borderRadius: 10, alignItems: 'center' },
   chatGateButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '900' },
 
-  // Modals
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'center', alignItems: 'center', padding: 16 },
   modalContent: { width: '100%', borderRadius: 16, borderWidth: 1, padding: 18 },
   modalHeaderTitle: { fontSize: 16, fontWeight: '900', textAlign: 'center', letterSpacing: 0.5 },
@@ -1135,17 +1300,15 @@ const styles = StyleSheet.create({
   sendIdeaBtn: { flex: 2, paddingVertical: 12, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   sendIdeaBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '900' },
 
-  // Fullscreen Modal
   modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.96)', justifyContent: 'space-between' },
   modalTopBar: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: Platform.OS === 'ios' ? 60 : 36, zIndex: 10 },
   modalCloseText: { color: '#FFFFFF', fontSize: 24, fontWeight: '900' },
   modalOptionsText: { color: '#FFFFFF', fontSize: 24, fontWeight: '900', letterSpacing: 1 },
   fullscreenImage: { width: '100%', height: '70%' },
-  modalBottomBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingBottom: Platform.OS === 'ios' ? 40 : 20 },
+  modalBottomBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20 },
   modalUsername: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
   modalDate: { color: '#80B3B8', fontSize: 11 },
 
-  // Options Popover
   optionsPopover: {
     position: 'absolute',
     top: Platform.OS === 'ios' ? 115 : 85,
@@ -1164,7 +1327,6 @@ const styles = StyleSheet.create({
   popoverItem: { paddingVertical: 12, paddingHorizontal: 14 },
   popoverText: { fontSize: 13, fontWeight: '700' },
 
-  // Comments Styles
   commentsOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
   commentsContainer: { height: '65%', borderTopLeftRadius: 20, borderTopRightRadius: 20, borderWidth: 1 },
   commentsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14, borderBottomWidth: 1 },
@@ -1182,5 +1344,5 @@ const styles = StyleSheet.create({
   commentInputRow: { flexDirection: 'row', padding: 10, borderTopWidth: 1, gap: 10, alignItems: 'center' },
   commentInput: { flex: 1, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 20, borderWidth: 1, fontSize: 13 },
   commentSendBtn: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20 },
-  commentSendBtnText: { color: '#001417', fontWeight: '900', fontSize: 13 },
+  commentSendBtnText: { color: '#001E22', fontWeight: '900', fontSize: 13 },
 });

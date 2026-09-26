@@ -19,8 +19,8 @@ import {
   KeyboardAvoidingView,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system/legacy';
-import * as MediaLibrary from 'expo-media-library/legacy';
+import * as FileSystem from 'expo-file-system';
+import * as MediaLibrary from 'expo-media-library';
 import { supabase } from '../../supabase';
 import { useAppTheme } from '../../context/ThemeContext';
 
@@ -259,7 +259,7 @@ export default function GalleryScreen() {
       const cleanUrl = photo.image_url.split('?')[0];
       const ext = cleanUrl.split('.').pop() || 'jpg';
       const filename = `cuda_fan_${Date.now()}.${ext}`;
-      const localUri = `${FileSystem.cacheDirectory}${filename}`;
+      const localUri = `${(FileSystem as any).cacheDirectory}${filename}`;
 
       const downloadRes = await FileSystem.downloadAsync(photo.image_url, localUri);
 

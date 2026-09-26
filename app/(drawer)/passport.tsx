@@ -10,9 +10,9 @@ import {
   Image, 
   Alert,
   useWindowDimensions,
-  StatusBar
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { supabase } from '../../supabase';
 import { useRouter, useFocusEffect } from 'expo-router';
 
@@ -24,6 +24,7 @@ const STAMP_IMAGES: Record<string, any> = {
 
 export default function PassportScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions(); 
   
   const scrollViewRef = useRef<ScrollView>(null);
@@ -86,7 +87,7 @@ export default function PassportScreen() {
           { text: 'Cancel', style: 'cancel' },
           { 
             text: 'Sign In / Sign Up', 
-            onPress: () => router.push('/(auth)/login') 
+            onPress: () => router.push('/(drawer)/info') 
           }
         ]
       );
@@ -107,8 +108,8 @@ export default function PassportScreen() {
   const pageStyle = { width, flex: 1, justifyContent: 'center' as const };
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
-      <StatusBar barStyle="light-content" backgroundColor="#001E22" />
+    <SafeAreaView style={styles.container} edges={['left', 'right']}>
+      <StatusBar style="light" />
 
       {/* 🧭 Tight, Flush Top Navigation Bar */}
       <View style={styles.navMenuContainer}>
@@ -209,8 +210,8 @@ export default function PassportScreen() {
 
           </ScrollView>
 
-          {/* Floating Scan Button */}
-          <View style={styles.actionButtonContainer}>
+          {/* Floating Scan Button with safe bottom margin */}
+          <View style={[styles.actionButtonContainer, { paddingBottom: Math.max(insets.bottom + 10, 18) }]}>
             <TouchableOpacity style={styles.scanButton} onPress={handleScanPress}>
               <Text style={styles.scanButtonIcon}>📷</Text>
               <Text style={styles.scanButtonText}>SCAN WIN STAMP</Text>
@@ -218,7 +219,6 @@ export default function PassportScreen() {
           </View>
         </View>
       )}
-      
     </SafeAreaView>
   );
 }
@@ -347,7 +347,6 @@ const styles = StyleSheet.create({
   badgeOpponentText: { color: '#FFFFFF', fontSize: 8, fontWeight: '700' },
   badgeScoreText: { color: '#80B3B8', fontSize: 7, fontWeight: '600' },
   actionButtonContainer: {
-    paddingVertical: 10,
     alignItems: 'center',
     backgroundColor: '#001417',
   },

@@ -46,13 +46,11 @@ export default function ScannerScreen() {
     setProcessing(true);
 
     try {
-      // 1. Get current logged in fan
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError || !user) {
         throw new Error('Please sign in to collect passport stamps.');
       }
 
-      // 2. Fetch the automated active game data from Supabase
       const { data: activeGame, error: configError } = await supabase
         .from('active_game_config')
         .select('*')
@@ -63,7 +61,6 @@ export default function ScannerScreen() {
         throw new Error('No active win stamp is available to claim at this moment.');
       }
 
-      // 3. Determine stamp type (from QR payload or fallback to active game default)
       let parsedStampType = activeGame.stamp_type || 'cudawin1';
       try {
         const parsed = JSON.parse(qrRawData);
@@ -73,7 +70,6 @@ export default function ScannerScreen() {
         else if (qrRawData.includes('cudawin1')) parsedStampType = 'cudawin1';
       }
 
-      // 4. Duplicate Check: Ensure user hasn't already claimed THIS specific game
       const { data: existingStamps } = await supabase
         .from('passport_stamps')
         .select('id')
@@ -87,7 +83,6 @@ export default function ScannerScreen() {
         return;
       }
 
-      // 5. Insert Stamp with automated Score, Opponent & Timestamp
       const { error: insertError } = await supabase
         .from('passport_stamps')
         .insert({
@@ -116,12 +111,10 @@ export default function ScannerScreen() {
     }
   };
 
-  // --- HANDLER 1: LIVE CAMERA SCAN ---
   const handleLiveCameraBarcode = ({ data }: { data: string }) => {
     processStampClaim(data);
   };
 
-  // --- HANDLER 2: UPLOAD FROM PHOTO ALBUM ---
   const handlePickImage = async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -137,7 +130,6 @@ export default function ScannerScreen() {
       const imageUri = result.assets[0].uri;
       setProcessing(true);
 
-      // Scan barcode directly from selected image file
       const scannedCodes = await scanFromURLAsync(imageUri, ['qr']);
 
       if (scannedCodes && scannedCodes.length > 0) {
@@ -155,7 +147,7 @@ export default function ScannerScreen() {
   return (
     <View style={styles.container}>
       <CameraView
-        style={StyleSheet.absoluteFillObject}
+        style={StyleSheet.absoluteFill}
         facing="back"
         onBarcodeScanned={scanned ? undefined : handleLiveCameraBarcode}
         barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
@@ -170,7 +162,7 @@ export default function ScannerScreen() {
         )}
       </View>
 
-      {/* Bottom Controls: Upload Photo & Cancel */}
+      {/* Bottom Controls */}
       <View style={styles.bottomBar}>
         <TouchableOpacity style={styles.actionButton} onPress={handlePickImage} disabled={processing}>
           <Text style={styles.actionButtonIcon}>🖼️</Text>

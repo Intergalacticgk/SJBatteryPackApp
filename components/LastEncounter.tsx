@@ -1,20 +1,22 @@
-import React, { useState } from 'react';
-import { 
-  StyleSheet, 
-  Text, 
-  View, 
-  TouchableOpacity, 
-  Modal, 
-  ScrollView, 
-  SafeAreaView 
+import React, { useState, useEffect } from 'react';
+import {
+  StyleSheet,
+  Text,
+  View,
+  TouchableOpacity,
+  Modal,
+  ScrollView,
+  SafeAreaView,
+  ActivityIndicator,
 } from 'react-native';
+import { supabase } from '../supabase';
 import { useAppTheme } from '../context/ThemeContext';
 
 export interface GameStats {
-  sog: [number, number]; // [SJ, Opponent]
-  pp: [string, string];   // e.g. ["1/4 (25.0%)", "0/3 (0.0%)"]
-  pim: [number, number];  // Penalty minutes
-  foPct: [string, string];// Faceoff %
+  sog: [number, number];
+  pp: [string, string];
+  pim: [number, number];
+  foPct: [string, string];
   periods: {
     p1: [number, number];
     p2: [number, number];
@@ -29,18 +31,32 @@ export interface GameStats {
     assists: string;
     type?: string;
   }[];
+  // AHL Gamecenter's own MVP picks (meta.mvp1/2/3 / the "mvps" array), in
+  // 1st/2nd/3rd order — this IS the "three stars of the game".
+  threeStars?: {
+    rank: number;
+    name: string;
+    team: string;
+  }[];
 }
 
-interface LastEncounterProps {
-  opponentAbbr?: string;
-  opponentName?: string;
-  gameDate?: string;
-  scoreSJ?: number;
-  scoreOpp?: number;
-  isWin?: boolean;
-  gameFact?: string;
-  stats?: GameStats;
+export interface LastEncounterGame {
+  id?: string | number;
+  game_id?: string | number;
+  opponent?: string | null;
+  opponent_abbr?: string | null;
+  game_date?: string | null;
+  date_display?: string | null;
+  home_away?: 'HOME' | 'AWAY' | string | null;
+  home_score?: number | null;
+  away_score?: number | null;
+  theme_night?: string | null;
+  status?: string | null;
+  stats?: GameStats | null;
 }
+
+const GC_BASE = 'https://lscluster.hockeytech.com/feed/index.php?feed=gc&tab=gamesummary';
+const GC_KEY = 'ccb91f29d6744675';
 
 interface TeamTheme {
   name: string;
@@ -64,52 +80,203 @@ const OPPONENT_THEMES: Record<string, TeamTheme> = {
 };
 
 function getOpponentTheme(rawName: string, rawAbbr: string): TeamTheme {
-  const lower = rawName.toLowerCase();
+  const lower = (rawName || '').toLowerCase();
   for (const key of Object.keys(OPPONENT_THEMES)) {
     if (lower.includes(key)) return OPPONENT_THEMES[key];
   }
-  const clean = rawName.replace(/(San Jose|San Diego|Colorado|Ontario|Bakersfield|Calgary|Abbotsford|Tucson|Coachella Valley|Henderson|Texas|Chicago)\s+/i, '').trim();
+  const clean = (rawName || '')
+    .replace(/(San Jose|San Diego|Colorado|Ontario|Bakersfield|Calgary|Abbotsford|Tucson|Coachella Valley|Henderson|Texas|Chicago)\s+/i, '')
+    .trim();
+
   return {
-    name: clean || rawName,
-    abbr: rawAbbr || clean.substring(0, 3).toUpperCase(),
+    name: clean || rawName || 'Condors',
+    abbr: rawAbbr || clean.substring(0, 3).toUpperCase() || 'BAK',
     bg: '#002B49',
     text: '#CF4520',
   };
 }
 
-const DEFAULT_STATS: GameStats = {
-  sog: [34, 28],
-  pp: ['1/4 (25.0%)', '0/3 (0.0%)'],
-  pim: [8, 10],
-  foPct: ['54.2%', '45.8%'],
-  periods: {
-    p1: [1, 0],
-    p2: [2, 1],
-    p3: [1, 1],
-  },
-  scoringPlays: [
-    { period: '1st', time: '14:22', team: 'SJ', scorer: 'C. Cassels (4)', assists: 'D. Guschin, S. Robins', type: 'EV' },
-    { period: '2nd', time: '05:10', team: 'BAK', scorer: 'M. Hamblin (8)', assists: 'B. Kemp', type: 'EV' },
-    { period: '2nd', time: '11:45', team: 'SJ', scorer: 'D. Guschin (12)', assists: 'E. Frisch, J. Bailey', type: 'PP' },
-    { period: '2nd', time: '18:02', team: 'SJ', scorer: 'K. Kostin (6)', assists: 'F. Bystedt', type: 'EV' },
-    { period: '3rd', time: '08:30', team: 'BAK', scorer: 'X. Bourgault (7)', assists: 'P. Broberg', type: 'EV' },
-    { period: '3rd', time: '19:15', team: 'SJ', scorer: 'T. Bordeleau (9)', assists: 'Unassisted (EN)', type: 'EV' },
-  ]
-};
+// Builds a "F. Lastname" style display from a scoredBy/assist object.
+// HockeyTech's feed gives firstName/lastName as separate fields — there is
+// no combined ".name" on the scorer object.
+function formatPlayerName(player: any): string {
+  if (!player) return '';
+  const first = (player.firstName || player.first_name || '').trim();
+  const last = (player.lastName || player.last_name || '').trim();
+  if (!first && !last) {
+    // Some feeds only expose a preformatted name
+    return (player.name || '').trim();
+  }
+  const initial = first ? `${first.charAt(0).toUpperCase()}.` : '';
+  return `${initial} ${last}`.trim();
+}
 
-export default function LastEncounter({
-  opponentAbbr = 'BAK',
-  opponentName = 'Bakersfield Condors',
-  gameDate = 'JAN 21, 2026',
-  scoreSJ = 4,
-  scoreOpp = 2,
-  isWin = true,
-  gameFact = 'Barracuda snapped a 3-game road skid with a dominant 3rd period forecheck in Kern County.',
-  stats = DEFAULT_STATS
-}: LastEncounterProps) {
+// Pure mapper — no fetch calls, easy to reuse and test.
+// Parses the AHL "Gamecenter" feed (feed=gc&tab=gamesummary), the source
+// confirmed live against real data — including its native "mvps" array,
+// which is the three stars of the game.
+function mapGamecenterSummary(
+  gc: any,
+  isSJHome: boolean,
+  oppAbbr: string
+): GameStats | null {
+  if (!gc || !gc.periods || !gc.home || !gc.visitor) return null;
+
+  const homeTeamId = String(gc.home.id ?? gc.meta?.home_team ?? '');
+  const visTeamId = String(gc.visitor.id ?? gc.meta?.visiting_team ?? '');
+
+  const homeSog = Number(gc.totalShots?.home || 0);
+  const visSog = Number(gc.totalShots?.visitor || 0);
+
+  const homePP = `${gc.powerPlayGoals?.home || 0}/${gc.powerPlayCount?.home || 0}`;
+  const visPP = `${gc.powerPlayGoals?.visitor || 0}/${gc.powerPlayCount?.visitor || 0}`;
+
+  const homePim = Number(gc.pimTotal?.home || 0);
+  const visPim = Number(gc.pimTotal?.visitor || 0);
+
+  // Faceoff totals are present on this feed but come back all-zero on games
+  // where the stat wasn't tracked — show "—" rather than a fake 0.0%/50%.
+  const homeFo = gc.totalFaceoffs?.home;
+  const visFo = gc.totalFaceoffs?.visitor;
+  const foPctHome = homeFo?.att ? `${((homeFo.won / homeFo.att) * 100).toFixed(1)}%` : '—';
+  const foPctVis = visFo?.att ? `${((visFo.won / visFo.att) * 100).toFixed(1)}%` : '—';
+
+  // goalsByPeriod is keyed "1".."4" (4 = OT, only present if the game went
+  // past regulation). A shootout is tracked separately (shootoutDetail /
+  // meta.shootout), not as an extra period.
+  const homeGoalsByP = gc.goalsByPeriod?.home || {};
+  const visGoalsByP = gc.goalsByPeriod?.visitor || {};
+
+  const homeP1 = Number(homeGoalsByP['1'] || 0);
+  const visP1 = Number(visGoalsByP['1'] || 0);
+  const homeP2 = Number(homeGoalsByP['2'] || 0);
+  const visP2 = Number(visGoalsByP['2'] || 0);
+  const homeP3 = Number(homeGoalsByP['3'] || 0);
+  const visP3 = Number(visGoalsByP['3'] || 0);
+  const hasOT = homeGoalsByP['4'] != null || visGoalsByP['4'] != null;
+  const homeOT = Number(homeGoalsByP['4'] || 0);
+  const visOT = Number(visGoalsByP['4'] || 0);
+
+  const periodInfo: Record<string, any> = gc.periods || {};
+
+  const plays = (gc.goals || []).map((g: any) => {
+    const scorerName = formatPlayerName(g.goal_scorer) || 'Goal';
+    const assists = [g.assist1_player, g.assist2_player].filter(Boolean);
+    const assistNames = assists.map((a: any) => formatPlayerName(a)).filter(Boolean).join(', ');
+    // Each goal carries its own home/visitor flag directly — no need to
+    // cross-reference team ids.
+    const scoredByHome = String(g.home) === '1';
+    const isSJGoal = isSJHome ? scoredByHome : !scoredByHome;
+    const pInfo = periodInfo[String(g.period_id)];
+
+    return {
+      period: pInfo?.short_name || pInfo?.long_name || '—',
+      time: g.time || '—',
+      team: isSJGoal ? 'SJ' : oppAbbr,
+      scorer: scorerName,
+      assists: assistNames || 'Unassisted',
+      type: g.goal_type || (g.short_handed === '1' ? 'SH' : g.empty_net === '1' ? 'EN' : 'EV'),
+    };
+  });
+
+  const threeStars = (gc.mvps || []).map((m: any, idx: number) => {
+    const isSJStar = isSJHome ? Number(m.home) === 1 : Number(m.home) === 0;
+    return {
+      rank: idx + 1,
+      name: formatPlayerName(m),
+      team: isSJStar ? 'SJ' : oppAbbr,
+    };
+  });
+
+  return {
+    sog: isSJHome ? [homeSog, visSog] : [visSog, homeSog],
+    pp: isSJHome ? [homePP, visPP] : [visPP, homePP],
+    pim: isSJHome ? [homePim, visPim] : [visPim, homePim],
+    foPct: isSJHome ? [foPctHome, foPctVis] : [foPctVis, foPctHome],
+    periods: {
+      p1: isSJHome ? [homeP1, visP1] : [visP1, homeP1],
+      p2: isSJHome ? [homeP2, visP2] : [visP2, homeP2],
+      p3: isSJHome ? [homeP3, visP3] : [visP3, homeP3],
+      ot: hasOT ? (isSJHome ? [homeOT, visOT] : [visOT, homeOT]) : undefined,
+    },
+    scoringPlays: plays,
+    threeStars,
+  };
+}
+
+export default function LastEncounter() {
   const { theme } = useAppTheme();
   const [modalVisible, setModalVisible] = useState(false);
+  const [lastGame, setLastGame] = useState<LastEncounterGame | null>(null);
+  const [stats, setStats] = useState<GameStats | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadLastGame() {
+      try {
+        setLoading(true);
+        const { data, error } = await supabase
+          .from('schedule')
+          .select('*')
+          .eq('status', 'FINAL')
+          .order('game_date', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (!isMounted) return;
+        if (error || !data) return;
+
+        const row = data as LastEncounterGame;
+        setLastGame(row);
+
+        if (row.stats) {
+          setStats(row.stats);
+          return;
+        }
+
+        if (!row.game_id) {
+          return;
+        }
+
+        const isSJHome = row.home_away === 'HOME';
+        const oppAbbr = row.opponent_abbr || 'OPP';
+        const url = `${GC_BASE}&key=${GC_KEY}&client_code=ahl&game_id=${row.game_id}`;
+
+        try {
+          const res = await fetch(url);
+          const json = await res.json();
+          const gc = json?.GC?.Gamesummary;
+          const mapped = mapGamecenterSummary(gc, isSJHome, oppAbbr);
+          if (isMounted && mapped) setStats(mapped);
+        } catch (apiErr) {
+          console.warn('Gamecenter feed unavailable:', apiErr);
+        }
+      } catch (err) {
+        console.warn('Error loading encounter:', err);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    }
+
+    loadLastGame();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  if (loading || !lastGame) return null;
+
+  const opponentName = lastGame.opponent || 'Opponent';
+  const opponentAbbr = lastGame.opponent_abbr || 'OPP';
+  const gameDate = lastGame.date_display || lastGame.game_date || '';
+  const isHome = lastGame.home_away === 'HOME';
+  const scoreSJ = isHome ? (lastGame.home_score || 0) : (lastGame.away_score || 0);
+  const scoreOpp = isHome ? (lastGame.away_score || 0) : (lastGame.home_score || 0);
+  const isWin = scoreSJ > scoreOpp;
   const opp = getOpponentTheme(opponentName, opponentAbbr);
+  const gameFact = lastGame.theme_night ? `Exhibition Matchup: ${lastGame.theme_night}` : '';
 
   return (
     <View style={styles.container}>
@@ -118,11 +285,8 @@ export default function LastEncounter({
         <Text style={[styles.dateTag, { color: theme.subText }]}>{gameDate}</Text>
       </View>
 
-      {/* Main Encounter Card */}
       <View style={[styles.card, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
         <View style={[styles.scoreBanner, { borderBottomColor: theme.borderColor }]}>
-          
-          {/* SJ Barracuda */}
           <View style={styles.teamCol}>
             <View style={[styles.teamBadge, styles.sjBadge]}>
               <Text style={styles.sjBadgeText}>SJ</Text>
@@ -131,37 +295,26 @@ export default function LastEncounter({
             <Text style={[styles.scoreText, { color: theme.text }]}>{scoreSJ}</Text>
           </View>
 
-          {/* Outcome Badge */}
           <View style={styles.outcomeCol}>
-            <View 
-              style={[
-                styles.statusPill, 
-                isWin ? styles.winPill : styles.lossPill
-              ]}
-            >
-              <Text 
-                style={[
-                  styles.statusPillText, 
-                  { color: isWin ? '#266B73' : '#FF5252' }
-                ]}
-              >
+            <View style={[styles.statusPill, isWin ? styles.winPill : styles.lossPill]}>
+              <Text style={[styles.statusPillText, { color: isWin ? '#266B73' : '#FF5252' }]}>
                 {isWin ? 'FINAL (W)' : 'FINAL (L)'}
               </Text>
             </View>
             <Text style={[styles.vsDivider, { color: theme.subText }]}>—</Text>
           </View>
 
-          {/* Opponent */}
           <View style={styles.teamCol}>
             <View style={[styles.teamBadge, { backgroundColor: opp.bg, borderColor: opp.text }]}>
               <Text style={[styles.teamBadgeText, { color: opp.text }]}>{opp.abbr}</Text>
             </View>
-            <Text style={[styles.teamName, { color: opp.text }]} numberOfLines={1}>{opp.name}</Text>
+            <Text style={[styles.teamName, { color: opp.text }]} numberOfLines={1}>
+              {opp.name}
+            </Text>
             <Text style={[styles.scoreText, { color: theme.text }]}>{scoreOpp}</Text>
           </View>
         </View>
 
-        {/* Fact snippet */}
         {gameFact ? (
           <View style={[styles.factContainer, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}>
             <Text style={styles.factIcon}>💡</Text>
@@ -169,27 +322,20 @@ export default function LastEncounter({
           </View>
         ) : null}
 
-        {/* View Full Stats Button */}
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[styles.statsButton, { backgroundColor: theme.accentOrange }]}
           onPress={() => setModalVisible(true)}
           activeOpacity={0.8}
         >
-          <Text style={styles.statsButtonText}>📊 View Stats & Key Plays</Text>
+          <Text style={styles.statsButtonText}>
+            {stats ? '📊 View Stats & Key Plays' : '📊 View Match Report'}
+          </Text>
         </TouchableOpacity>
       </View>
 
-      {/* 🏒 HOCKEY BOXSCORE MODAL */}
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={modalVisible}
-        onRequestClose={() => setModalVisible(false)}
-      >
+      <Modal animationType="slide" transparent={true} visible={modalVisible} onRequestClose={() => setModalVisible(false)}>
         <View style={styles.modalOverlay}>
           <SafeAreaView style={[styles.modalContainer, { backgroundColor: theme.cardBg, borderColor: theme.accentGold }]}>
-            
-            {/* Modal Header */}
             <View style={[styles.modalHeader, { borderBottomColor: theme.borderColor }]}>
               <Text style={[styles.modalHeaderTitle, { color: theme.accentGold }]}>MATCH REPORT & STATS</Text>
               <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.closeIconBtn}>
@@ -198,18 +344,19 @@ export default function LastEncounter({
             </View>
 
             <ScrollView contentContainerStyle={styles.modalScroll}>
-              
-              {/* Score Recap Banner */}
               <View style={[styles.modalScoreCard, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}>
                 <Text style={[styles.modalGameSub, { color: theme.subText }]}>San Jose Barracuda vs {opp.name}</Text>
                 <View style={styles.modalScoreNumbers}>
                   <Text style={[styles.modalLargeScore, { color: theme.text }]}>SJ {scoreSJ}</Text>
                   <Text style={[styles.modalScoreSep, { color: theme.accentGold }]}>-</Text>
-                  <Text style={[styles.modalLargeScore, { color: theme.text }]}>{scoreOpp} {opp.abbr}</Text>
+                  <Text style={[styles.modalLargeScore, { color: theme.text }]}>
+                    {scoreOpp} {opp.abbr}
+                  </Text>
                 </View>
               </View>
 
-              {/* Period-by-Period Scoring */}
+              {stats ? (
+                <>
               <Text style={[styles.subSectionTitle, { color: theme.accentGold }]}>PERIOD BREAKDOWN</Text>
               <View style={[styles.tableCard, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}>
                 <View style={[styles.tableRowHeader, { borderBottomColor: theme.borderColor }]}>
@@ -217,99 +364,139 @@ export default function LastEncounter({
                   <Text style={[styles.tableCellHeader, { color: theme.subText }]}>1st</Text>
                   <Text style={[styles.tableCellHeader, { color: theme.subText }]}>2nd</Text>
                   <Text style={[styles.tableCellHeader, { color: theme.subText }]}>3rd</Text>
-                  {stats.periods.ot && <Text style={[styles.tableCellHeader, { color: theme.subText }]}>OT</Text>}
+                  {stats.periods.ot ? <Text style={[styles.tableCellHeader, { color: theme.subText }]}>OT</Text> : null}
                   <Text style={[styles.tableCellHeader, styles.boldCell, { color: theme.accentGold }]}>F</Text>
                 </View>
-                {/* SJ Row */}
+
                 <View style={[styles.tableRow, { borderBottomColor: theme.borderColor }]}>
                   <Text style={[styles.tableCellTeamData, { color: theme.text, fontWeight: '800' }]}>SJ</Text>
                   <Text style={[styles.tableCellData, { color: theme.text }]}>{stats.periods.p1[0]}</Text>
                   <Text style={[styles.tableCellData, { color: theme.text }]}>{stats.periods.p2[0]}</Text>
                   <Text style={[styles.tableCellData, { color: theme.text }]}>{stats.periods.p3[0]}</Text>
-                  {stats.periods.ot && <Text style={[styles.tableCellData, { color: theme.text }]}>{stats.periods.ot[0]}</Text>}
+                  {stats.periods.ot ? <Text style={[styles.tableCellData, { color: theme.text }]}>{stats.periods.ot[0]}</Text> : null}
                   <Text style={[styles.tableCellData, styles.boldCell, { color: theme.accentGold }]}>{scoreSJ}</Text>
                 </View>
-                {/* Opponent Row */}
+
                 <View style={[styles.tableRow, { borderBottomWidth: 0 }]}>
                   <Text style={[styles.tableCellTeamData, { color: opp.text, fontWeight: '800' }]}>{opp.abbr}</Text>
                   <Text style={[styles.tableCellData, { color: theme.text }]}>{stats.periods.p1[1]}</Text>
                   <Text style={[styles.tableCellData, { color: theme.text }]}>{stats.periods.p2[1]}</Text>
                   <Text style={[styles.tableCellData, { color: theme.text }]}>{stats.periods.p3[1]}</Text>
-                  {stats.periods.ot && <Text style={[styles.tableCellData, { color: theme.text }]}>{stats.periods.ot[1]}</Text>}
+                  {stats.periods.ot ? <Text style={[styles.tableCellData, { color: theme.text }]}>{stats.periods.ot[1]}</Text> : null}
                   <Text style={[styles.tableCellData, styles.boldCell, { color: theme.accentGold }]}>{scoreOpp}</Text>
                 </View>
               </View>
 
-              {/* Team Hockey Stats Comparison */}
               <Text style={[styles.subSectionTitle, { color: theme.accentGold }]}>TEAM COMPARISON</Text>
               <View style={[styles.statComparisonBox, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}>
-                
-                {/* Team Abbreviation Header Row */}
                 <View style={[styles.statHeaderRow, { borderBottomColor: theme.borderColor }]}>
                   <Text style={[styles.statHeaderLeft, { color: theme.accentGold }]}>SJ</Text>
                   <Text style={[styles.statHeaderCenter, { color: theme.subText }]}>Metric</Text>
                   <Text style={[styles.statHeaderRight, { color: opp.text }]}>{opp.abbr}</Text>
                 </View>
 
-                {/* Shots on Goal */}
                 <View style={[styles.statRow, { borderBottomColor: theme.borderColor }]}>
                   <Text style={[styles.statValLeft, { color: theme.text }]}>{stats.sog[0]}</Text>
                   <Text style={[styles.statLabel, { color: theme.subText }]}>Shots on Goal (SOG)</Text>
                   <Text style={[styles.statValRight, { color: theme.text }]}>{stats.sog[1]}</Text>
                 </View>
 
-                {/* Power Play */}
                 <View style={[styles.statRow, { borderBottomColor: theme.borderColor }]}>
                   <Text style={[styles.statValLeft, { color: theme.text }]}>{stats.pp[0]}</Text>
                   <Text style={[styles.statLabel, { color: theme.subText }]}>Power Play (PP)</Text>
                   <Text style={[styles.statValRight, { color: theme.text }]}>{stats.pp[1]}</Text>
                 </View>
 
-                {/* Penalty Minutes */}
                 <View style={[styles.statRow, { borderBottomColor: theme.borderColor }]}>
                   <Text style={[styles.statValLeft, { color: theme.text }]}>{stats.pim[0]} min</Text>
                   <Text style={[styles.statLabel, { color: theme.subText }]}>Penalty Mins (PIM)</Text>
                   <Text style={[styles.statValRight, { color: theme.text }]}>{stats.pim[1]} min</Text>
                 </View>
 
-                {/* Faceoff Win % */}
                 <View style={[styles.statRow, { borderBottomWidth: 0 }]}>
                   <Text style={[styles.statValLeft, { color: theme.text }]}>{stats.foPct[0]}</Text>
                   <Text style={[styles.statLabel, { color: theme.subText }]}>Faceoff Win %</Text>
                   <Text style={[styles.statValRight, { color: theme.text }]}>{stats.foPct[1]}</Text>
                 </View>
-
               </View>
 
-              {/* Key Plays / Scoring Summary */}
               <Text style={[styles.subSectionTitle, { color: theme.accentGold }]}>SCORING SUMMARY & KEY PLAYS</Text>
               <View style={[styles.playsList, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}>
                 {stats.scoringPlays.map((play, idx) => (
-                  <View key={idx} style={[styles.playItem, { borderBottomColor: theme.borderColor }, idx === stats.scoringPlays.length - 1 && { borderBottomWidth: 0 }]}>
+                  <View
+                    key={idx}
+                    style={[
+                      styles.playItem,
+                      { borderBottomColor: theme.borderColor },
+                      idx === stats.scoringPlays.length - 1 && { borderBottomWidth: 0 },
+                    ]}
+                  >
                     <View style={styles.playBadgeCol}>
                       <View style={[styles.playTeamPill, play.team === 'SJ' ? styles.playTeamSJ : { backgroundColor: opp.bg }]}>
                         <Text style={[styles.playTeamText, play.team !== 'SJ' && { color: opp.text }]}>{play.team}</Text>
                       </View>
-                      <Text style={[styles.playTimeText, { color: theme.subText }]}>{play.period} • {play.time}</Text>
+                      <Text style={[styles.playTimeText, { color: theme.subText }]}>
+                        {play.period} • {play.time}
+                      </Text>
                     </View>
                     <View style={styles.playDetailsCol}>
-                      <Text style={[styles.playScorer, { color: theme.text }]}>{play.scorer} {play.type && play.type !== 'EV' ? `(${play.type})` : ''}</Text>
+                      <Text style={[styles.playScorer, { color: theme.text }]}>
+                        {play.scorer} {play.type && play.type !== 'EV' ? `(${play.type})` : ''}
+                      </Text>
                       <Text style={[styles.playAssists, { color: theme.subText }]}>{play.assists}</Text>
                     </View>
                   </View>
                 ))}
               </View>
 
+              {stats.threeStars && stats.threeStars.length > 0 && (
+                <>
+                  <Text style={[styles.subSectionTitle, { color: theme.accentGold }]}>3 STARS OF THE GAME</Text>
+                  <View style={[styles.starsList, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}>
+                    {stats.threeStars.map((star) => (
+                      <View
+                        key={star.rank}
+                        style={[
+                          styles.starItem,
+                          { borderBottomColor: theme.borderColor },
+                          star.rank === stats.threeStars!.length && { borderBottomWidth: 0 },
+                        ]}
+                      >
+                        <View style={[styles.starRankBadge, { borderColor: theme.accentGold }]}>
+                          <Text style={[styles.starRankText, { color: theme.accentGold }]}>{'★'.repeat(4 - star.rank)}</Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.starName, { color: theme.text }]}>{star.name}</Text>
+                        </View>
+                        <View
+                          style={[
+                            styles.playTeamPill,
+                            star.team === 'SJ' ? styles.playTeamSJ : { backgroundColor: opp.bg },
+                          ]}
+                        >
+                          <Text style={[styles.playTeamText, star.team !== 'SJ' && { color: opp.text }]}>{star.team}</Text>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                </>
+              )}
+                </>
+              ) : (
+                <View style={[styles.emptyStatsBox, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}>
+                  <Text style={[styles.emptyStatsText, { color: theme.subText }]}>
+                    Full box score isn't available for this game yet. Check back soon.
+                  </Text>
+                </View>
+              )}
             </ScrollView>
 
-            {/* Modal Bottom Return Button */}
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.modalReturnBtn, { backgroundColor: theme.bg, borderTopColor: theme.borderColor }]}
               onPress={() => setModalVisible(false)}
             >
               <Text style={[styles.modalReturnText, { color: theme.accentGold }]}>Close Report</Text>
             </TouchableOpacity>
-
           </SafeAreaView>
         </View>
       </Modal>
@@ -318,353 +505,77 @@ export default function LastEncounter({
 }
 
 const styles = StyleSheet.create({
-  container: {
-    marginVertical: 10,
-    width: '100%',
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  sectionTitle: {
-    fontSize: 13,
-    fontWeight: '900',
-    letterSpacing: 1,
-  },
-  dateTag: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  card: {
-    borderRadius: 14,
-    padding: 14,
-    borderWidth: 1,
-    width: '100%',
-  },
-  scoreBanner: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 4,
-    paddingBottom: 10,
-    borderBottomWidth: 1,
-  },
-  teamCol: {
-    alignItems: 'center',
-    width: 90,
-  },
-  teamBadge: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    marginBottom: 4,
-  },
-  sjBadge: {
-    backgroundColor: '#266B73',
-    borderColor: '#000000',
-  },
-  sjBadgeText: {
-    color: '#FFFFFF',
-    fontWeight: '900',
-    fontSize: 15,
-  },
-  teamBadgeText: {
-    fontWeight: '900',
-    fontSize: 13,
-  },
-  teamName: {
-    fontSize: 11,
-    fontWeight: '800',
-    marginBottom: 2,
-    textAlign: 'center',
-  },
-  scoreText: {
-    fontSize: 24,
-    fontWeight: '900',
-  },
-  outcomeCol: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-  },
-  statusPill: {
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 14,
-    borderWidth: 1.5,
-  },
-  winPill: {
-    backgroundColor: 'transparent',
-    borderColor: '#266B73',
-  },
-  lossPill: {
-    backgroundColor: 'rgba(255, 82, 82, 0.18)',
-    borderColor: '#FF5252',
-  },
-  statusPillText: {
-    fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-  },
-  vsDivider: {
-    fontSize: 16,
-    fontWeight: '900',
-    marginTop: 4,
-  },
-  factContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    marginTop: 10,
-    gap: 8,
-  },
-  factIcon: {
-    fontSize: 14,
-  },
-  factText: {
-    fontSize: 11,
-    fontWeight: '500',
-    flex: 1,
-    lineHeight: 16,
-  },
-  statsButton: {
-    paddingVertical: 12,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginTop: 10,
-  },
-  statsButtonText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.85)',
-    justifyContent: 'flex-end',
-  },
-  modalContainer: {
-    height: '90%',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    borderWidth: 1,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-  },
-  modalHeaderTitle: {
-    fontSize: 15,
-    fontWeight: '900',
-    letterSpacing: 1,
-  },
-  closeIconBtn: {
-    padding: 4,
-  },
-  closeIconText: {
-    fontSize: 18,
-    fontWeight: '900',
-  },
-  modalScroll: {
-    padding: 16,
-    paddingBottom: 30,
-  },
-  modalScoreCard: {
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginBottom: 16,
-    borderWidth: 1,
-  },
-  modalGameSub: {
-    fontSize: 12,
-    fontWeight: '700',
-    marginBottom: 6,
-  },
-  modalScoreNumbers: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  modalLargeScore: {
-    fontSize: 26,
-    fontWeight: '900',
-  },
-  modalScoreSep: {
-    fontSize: 24,
-    fontWeight: '900',
-  },
-  subSectionTitle: {
-    fontSize: 12,
-    fontWeight: '900',
-    letterSpacing: 0.8,
-    marginTop: 10,
-    marginBottom: 8,
-  },
-  tableCard: {
-    borderRadius: 10,
-    padding: 10,
-    marginBottom: 16,
-    borderWidth: 1,
-  },
-  tableRowHeader: {
-    flexDirection: 'row',
-    borderBottomWidth: 1,
-    paddingBottom: 6,
-    alignItems: 'center',
-  },
-  tableRow: {
-    flexDirection: 'row',
-    borderBottomWidth: 1,
-    paddingVertical: 8,
-    alignItems: 'center',
-  },
-  tableCellTeamHeader: {
-    flex: 1.5,
-    textAlign: 'left',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  tableCellTeamData: {
-    flex: 1.5,
-    textAlign: 'left',
-    fontSize: 12,
-  },
-  tableCellHeader: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  tableCellData: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: 12,
-  },
-  boldCell: {
-    fontWeight: '900',
-  },
-  statComparisonBox: {
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 16,
-    borderWidth: 1,
-  },
-  statHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingBottom: 6,
-    borderBottomWidth: 1,
-  },
-  statHeaderLeft: {
-    fontWeight: '900',
-    fontSize: 12,
-    width: 80,
-    textAlign: 'left',
-  },
-  statHeaderCenter: {
-    fontSize: 10,
-    fontWeight: '700',
-    textAlign: 'center',
-    flex: 1,
-    letterSpacing: 0.5,
-  },
-  statHeaderRight: {
-    fontWeight: '900',
-    fontSize: 12,
-    width: 80,
-    textAlign: 'right',
-  },
-  statRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-  },
-  statValLeft: {
-    fontWeight: '900',
-    fontSize: 13,
-    width: 80,
-    textAlign: 'left',
-  },
-  statLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    textAlign: 'center',
-    flex: 1,
-  },
-  statValRight: {
-    fontWeight: '900',
-    fontSize: 13,
-    width: 80,
-    textAlign: 'right',
-  },
-  playsList: {
-    borderRadius: 10,
-    padding: 10,
-    gap: 8,
-    borderWidth: 1,
-  },
-  playItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 6,
-    borderBottomWidth: 1,
-    gap: 10,
-  },
-  playBadgeCol: {
-    alignItems: 'center',
-    width: 65,
-  },
-  playTeamPill: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    marginBottom: 2,
-  },
-  playTeamSJ: {
-    backgroundColor: '#266B73',
-  },
-  playTeamText: {
-    color: '#FFFFFF',
-    fontSize: 9,
-    fontWeight: '900',
-  },
-  playTimeText: {
-    fontSize: 9,
-    fontWeight: '600',
-  },
-  playDetailsCol: {
-    flex: 1,
-  },
-  playScorer: {
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  playAssists: {
-    fontSize: 10,
-    fontWeight: '500',
-  },
-  modalReturnBtn: {
-    paddingVertical: 14,
-    alignItems: 'center',
-    borderTopWidth: 1,
-  },
-  modalReturnText: {
-    fontSize: 14,
-    fontWeight: '900',
-  },
+  container: { marginVertical: 10, width: '100%' },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  sectionTitle: { fontSize: 13, fontWeight: '900', letterSpacing: 1 },
+  dateTag: { fontSize: 11, fontWeight: '700' },
+  card: { borderRadius: 14, padding: 14, borderWidth: 1, width: '100%' },
+  scoreBanner: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4, paddingBottom: 10, borderBottomWidth: 1 },
+  teamCol: { alignItems: 'center', width: 90 },
+  teamBadge: { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center', borderWidth: 2, marginBottom: 4 },
+  sjBadge: { backgroundColor: '#266B73', borderColor: '#000000' },
+  sjBadgeText: { color: '#FFFFFF', fontWeight: '900', fontSize: 15 },
+  teamBadgeText: { fontWeight: '900', fontSize: 13 },
+  teamName: { fontSize: 11, fontWeight: '800', marginBottom: 2, textAlign: 'center' },
+  scoreText: { fontSize: 24, fontWeight: '900' },
+  outcomeCol: { alignItems: 'center', justifyContent: 'center', flex: 1 },
+  statusPill: { paddingVertical: 4, paddingHorizontal: 10, borderRadius: 14, borderWidth: 1.5 },
+  winPill: { backgroundColor: 'transparent', borderColor: '#266B73' },
+  lossPill: { backgroundColor: 'rgba(255, 82, 82, 0.18)', borderColor: '#FF5252' },
+  statusPillText: { fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
+  vsDivider: { fontSize: 16, fontWeight: '900', marginTop: 4 },
+  factContainer: { flexDirection: 'row', alignItems: 'center', padding: 10, borderRadius: 10, borderWidth: 1, marginTop: 10, gap: 8 },
+  factIcon: { fontSize: 14 },
+  factText: { fontSize: 11, fontWeight: '500', flex: 1, lineHeight: 16 },
+  statsButton: { paddingVertical: 12, borderRadius: 10, alignItems: 'center', marginTop: 10 },
+  statsButtonText: { color: '#FFFFFF', fontSize: 13, fontWeight: '900', letterSpacing: 0.5 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.85)', justifyContent: 'flex-end' },
+  modalContainer: { height: '90%', borderTopLeftRadius: 20, borderTopRightRadius: 20, borderWidth: 1 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1 },
+  modalHeaderTitle: { fontSize: 15, fontWeight: '900', letterSpacing: 1 },
+  closeIconBtn: { padding: 4 },
+  closeIconText: { fontSize: 18, fontWeight: '900' },
+  modalScroll: { padding: 16, paddingBottom: 30 },
+  modalScoreCard: { padding: 16, borderRadius: 12, alignItems: 'center', marginBottom: 16, borderWidth: 1 },
+  modalGameSub: { fontSize: 12, fontWeight: '700', marginBottom: 6 },
+  modalScoreNumbers: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  modalLargeScore: { fontSize: 26, fontWeight: '900' },
+  modalScoreSep: { fontSize: 24, fontWeight: '900' },
+  subSectionTitle: { fontSize: 12, fontWeight: '900', letterSpacing: 0.8, marginTop: 10, marginBottom: 8 },
+  tableCard: { borderRadius: 10, padding: 10, marginBottom: 16, borderWidth: 1 },
+  tableRowHeader: { flexDirection: 'row', borderBottomWidth: 1, paddingBottom: 6, alignItems: 'center' },
+  tableRow: { flexDirection: 'row', borderBottomWidth: 1, paddingVertical: 8, alignItems: 'center' },
+  tableCellTeamHeader: { flex: 1.5, textAlign: 'left', fontSize: 11, fontWeight: '700' },
+  tableCellTeamData: { flex: 1.5, textAlign: 'left', fontSize: 12 },
+  tableCellHeader: { flex: 1, textAlign: 'center', fontSize: 11, fontWeight: '700' },
+  tableCellData: { flex: 1, textAlign: 'center', fontSize: 12 },
+  boldCell: { fontWeight: '900' },
+  statComparisonBox: { borderRadius: 10, padding: 12, marginBottom: 16, borderWidth: 1 },
+  statHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 6, borderBottomWidth: 1 },
+  statHeaderLeft: { fontWeight: '900', fontSize: 12, width: 80, textAlign: 'left' },
+  statHeaderCenter: { fontSize: 10, fontWeight: '700', textAlign: 'center', flex: 1, letterSpacing: 0.5 },
+  statHeaderRight: { fontWeight: '900', fontSize: 12, width: 80, textAlign: 'right' },
+  statRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1 },
+  statValLeft: { fontWeight: '900', fontSize: 13, width: 80, textAlign: 'left' },
+  statLabel: { fontSize: 11, fontWeight: '700', textAlign: 'center', flex: 1 },
+  statValRight: { fontWeight: '900', fontSize: 13, width: 80, textAlign: 'right' },
+  playsList: { borderRadius: 10, padding: 10, gap: 8, borderWidth: 1 },
+  playItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderBottomWidth: 1, gap: 10 },
+  playBadgeCol: { alignItems: 'center', width: 65 },
+  playTeamPill: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginBottom: 2 },
+  playTeamSJ: { backgroundColor: '#266B73' },
+  playTeamText: { color: '#FFFFFF', fontSize: 9, fontWeight: '900' },
+  playTimeText: { fontSize: 9, fontWeight: '600' },
+  playDetailsCol: { flex: 1 },
+  playScorer: { fontSize: 12, fontWeight: '800' },
+  playAssists: { fontSize: 10, fontWeight: '500' },
+  starsList: { borderRadius: 10, padding: 10, gap: 4, borderWidth: 1 },
+  starItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, gap: 10 },
+  starRankBadge: { width: 44, alignItems: 'center' },
+  starRankText: { fontSize: 12, fontWeight: '900', letterSpacing: 1 },
+  starName: { fontSize: 13, fontWeight: '800' },
+  emptyStatsBox: { padding: 20, borderRadius: 12, borderWidth: 1, alignItems: 'center' },
+  emptyStatsText: { fontSize: 13, fontWeight: '600', textAlign: 'center', lineHeight: 19 },
+  modalReturnBtn: { paddingVertical: 14, alignItems: 'center', borderTopWidth: 1 },
+  modalReturnText: { fontSize: 14, fontWeight: '900' },
 });

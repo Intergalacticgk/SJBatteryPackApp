@@ -1,9 +1,10 @@
 import React from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Switch, StatusBar } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, Switch } from 'react-native';
 import { Drawer } from 'expo-router/drawer';
-import { DrawerContentScrollView, DrawerItemList } from 'expo-router/drawer';
+import { DrawerContentScrollView, DrawerItemList } from '@react-navigation/drawer';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { ThemeProvider, useAppTheme } from '../../context/ThemeContext';
 
 function CustomDrawerContent(props: any) {
@@ -59,10 +60,7 @@ function DrawerNavigation() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <StatusBar 
-        barStyle={theme.isDark ? 'light-content' : 'dark-content'} 
-        backgroundColor={theme.cardBg} 
-      />
+      <StatusBar style={theme.isDark ? 'light' : 'dark'} />
       <Drawer
         drawerContent={(props) => <CustomDrawerContent {...props} />}
         screenOptions={{
@@ -185,9 +183,11 @@ function DrawerNavigation() {
 
 export default function RootDrawerLayout() {
   return (
-    <ThemeProvider>
-      <DrawerNavigation />
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <DrawerNavigation />
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }
 

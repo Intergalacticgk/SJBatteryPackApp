@@ -7,10 +7,11 @@ import {
   TouchableOpacity, 
   ActivityIndicator, 
   Modal, 
-  SafeAreaView, 
-  StatusBar, 
-  RefreshControl 
+  RefreshControl,
+  Dimensions
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import * as WebBrowser from 'expo-web-browser'; 
 import { useRouter } from 'expo-router'; 
 import { supabase } from '../../supabase'; 
@@ -18,6 +19,8 @@ import NextMatchups from '../../components/NextMatchups';
 import LastEncounter from '../../components/LastEncounter';
 import Standings from '../../components/Standings';
 import { useAppTheme } from '../../context/ThemeContext';
+
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 interface UpcomingGame {
   id: string;
@@ -56,7 +59,7 @@ export default function HomeScreen() {
   const [infoModalVisible, setInfoModalVisible] = useState(false);
   const [activeTab, setActiveTab] = useState<GuideTab>('TIMELINE');
 
-  const SPOT_HERO_URL = "https://spothero.com/search?kind=destination&id=98853&%243p=a_hasoffers&%24affiliate_json=http%3A%2F%2Ftracking.spothero.com%2Faff_c%3Foffer_id%3D1%26aff_id%3D1822%26source%3Dtechcu%26aff_sub2%3Dparkingpage%26aff_sub3%3Dlink%26format%3Djson&operator_id=16236&_branch_match_id=1160313675964026424&utm_source=Partnerships&utm_campaign=Tune_Platform&utm_medium=paid+advertising&_branch_referrer=H4sIAAAAAAAAA32RwW7CMBBEvyY%2BQmJDCJWsqiri2AvqOXKcDXZJYtd2WnHh27sONIVSVfJlZ%2B2dfWMVgvUP87m3JihwZiasnbW6P8yDzyx9ed9B9njQfc1r8EH3ImjTE13zdVEsGUnoglkuSiW8aRpw%2Fm9FNI1utQhQvnnTc4WmCXtK6BZPcEKiwX42rSBNhzq%2BKWXCtuOUUxK4T22QJzaN8LgpKsfZmcBKwDiCVHC43%2FFBR1KxwcbQVe%2FhpMGxEQlQa4zoRsI5rEWPBiWCiGc9yynIyuHZc1k%2Fb3uUUCaakcN2ELmMCOPMqA7T6hXGSrZaHS53SVQNpwYq8qvIqX7C0kNWqksVyUazHy8aHUg7OQS%2BP%2BOJ1t5nkD9EOkT%2BNigdp%2Blq4Y2mHqtUeV8VWjEmJcvqFi3SX3N6INsZGiZcKOjizE4U2%2FA6cWBEUv8En4wBOyTcsz8jZhZ89yITN%2F4cmt8gcgckVLk%2FJyQF6OPzdsnLm04Pjz8qZDr4An%2F32gtICAAA%3D&view=dl&sc_src=email_810903&sc_lid=115904702&sc_uid=EylLZSAwqa&sc_llid=868&sc_eh=8a76f9a613a0bf8c1";
+  const SPOT_HERO_URL = "https://spothero.com/search?kind=destination&id=98853";
 
   const formatGameTimeDisplay = (timeStr?: string) => {
     if (!timeStr) return 'TBD';
@@ -71,9 +74,9 @@ export default function HomeScreen() {
   };
 
   const getCalculatedDoorTimes = (timeStr?: string) => {
-    if (!timeStr) return { memberTime: '5:45 PM', generalTime: '6:00 PM' };
+    if (!timeStr) return { memberTime: '1:45 PM', generalTime: '2:00 PM' };
     
-    let hours = 19;
+    let hours = 15;
     let minutes = 0;
 
     const cleanTime = timeStr.trim().toUpperCase();
@@ -116,7 +119,7 @@ export default function HomeScreen() {
     setIsGameWindowOpen(todayLocalStr === gameDateStr);
   };
 
-  const fetchNextMatchupAndEvents = useCallback(async () => {
+  const fetchNextMatchupAndEvents = useCallback(async (isMounted = true) => {
     try {
       const todayString = new Date().toLocaleDateString('sv-SE'); 
 
@@ -129,50 +132,55 @@ export default function HomeScreen() {
 
       if (error) throw error;
 
-      if (data && data.length > 0) {
-        const game = data[0];
-        setNextGame(game);
-        checkGamedayActive(game.game_date);
+      if (isMounted) {
+        if (data && data.length > 0) {
+          const game = data[0];
+          setNextGame(game);
+          checkGamedayActive(game.game_date);
 
-        // Fetch corresponding supporter events for this game date
-        const { data: eventsData } = await supabase
-          .from('supporter_events')
-          .select('*')
-          .eq('event_date', game.game_date);
+          const { data: eventsData } = await supabase
+            .from('supporter_events')
+            .select('*')
+            .eq('event_date', game.game_date);
 
-        if (Array.isArray(eventsData)) {
-          setMatchedEvents(
-            eventsData.map((e: any) => ({
-              id: String(e.id),
-              title: e.title,
-              category: e.category,
-              badge: e.badge,
-              event_time: e.event_time,
-              location: e.location,
-              description: e.description,
-              icon: e.icon || '🏒',
-            }))
-          );
+          if (Array.isArray(eventsData)) {
+            setMatchedEvents(
+              eventsData.map((e: any) => ({
+                id: String(e.id),
+                title: e.title,
+                category: e.category,
+                badge: e.badge,
+                event_time: e.event_time,
+                location: e.location,
+                description: e.description,
+                icon: e.icon || '🏒',
+              }))
+            );
+          } else {
+            setMatchedEvents([]);
+          }
         } else {
+          setNextGame(null);
           setMatchedEvents([]);
         }
-      } else {
-        setNextGame(null);
-        setMatchedEvents([]);
       }
     } catch (err) {
       console.warn("Supabase schedule fetch fallback engaged:", err);
-      setNextGame(null);
-      setMatchedEvents([]);
+      if (isMounted) {
+        setNextGame(null);
+        setMatchedEvents([]);
+      }
     } finally {
-      setLoading(false);
+      if (isMounted) {
+        setLoading(false);
+      }
     }
   }, []);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await fetchNextMatchupAndEvents();
+      await fetchNextMatchupAndEvents(true);
       setRefreshKey((prev) => prev + 1);
     } catch (err) {
       console.warn("Pull to refresh error:", err);
@@ -182,10 +190,15 @@ export default function HomeScreen() {
   }, [fetchNextMatchupAndEvents]);
 
   useEffect(() => {
-    fetchNextMatchupAndEvents();
+    let mounted = true;
+    fetchNextMatchupAndEvents(mounted);
+    return () => {
+      mounted = false;
+    };
   }, [fetchNextMatchupAndEvents]);
 
   const handleCheckInPress = () => {
+    setActiveTab('TIMELINE');
     setInfoModalVisible(true);
   };
 
@@ -200,7 +213,6 @@ export default function HomeScreen() {
 
         return (
           <View>
-            {/* 1. Gameday Entry Schedule */}
             <View style={[styles.infoBox, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}>
               <Text style={[styles.infoTitle, { color: theme.accentGold }]}>🕒 Gameday Entry & Gate Times</Text>
               <Text style={[styles.infoBody, { color: theme.text }]}>
@@ -214,7 +226,6 @@ export default function HomeScreen() {
               </Text>
             </View>
 
-            {/* 2. Warm-Up Viewing Zones */}
             <View style={[styles.infoBox, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}>
               <Text style={[styles.infoTitle, { color: theme.accentGold }]}>🏒 Player Warm-Ups & Glass Access</Text>
               <Text style={[styles.infoBody, { color: theme.text }]}>
@@ -228,7 +239,6 @@ export default function HomeScreen() {
               </Text>
             </View>
 
-            {/* 3. Front Office Theme & Giveaways */}
             {(nextGame?.theme_night || nextGame?.promo) && (
               <View style={[styles.infoBox, { backgroundColor: theme.subCardBg, borderColor: theme.accentOrange }]}>
                 <View style={styles.foHeaderRow}>
@@ -253,7 +263,6 @@ export default function HomeScreen() {
               </View>
             )}
 
-            {/* 4. Supporter Events Active for this Game (From supporter_events) */}
             {matchedEvents.length > 0 && (
               <View style={[styles.infoBox, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}>
                 <Text style={[styles.infoTitle, { color: theme.accentGold }]}>🪸 SJ Battery Pack Gameday Events</Text>
@@ -277,9 +286,8 @@ export default function HomeScreen() {
               </View>
             )}
 
-            {/* 5. Dynamic SJ Battery Pack Operations & Traditions */}
             <View style={[styles.infoBox, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}>
-              <Text style={[styles.infoTitle, { color: theme.accentGold }]}>🥁 Sj Battery Pack Operations & Traditions</Text>
+              <Text style={[styles.infoTitle, { color: theme.accentGold }]}>🥁 SJ Battery Pack Operations & Traditions</Text>
               
               {tablingEvent ? (
                 <Text style={[styles.infoBody, { color: theme.text }]}>
@@ -336,7 +344,7 @@ export default function HomeScreen() {
         return (
           <View>
             <View style={[styles.infoBox, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}>
-              <Text style={[styles.infoTitle, { color: theme.accentGold }]}>🍻 💡 The Cove (Section 108)</Text>
+              <Text style={[styles.infoTitle, { color: theme.accentGold }]}>🍻 The Cove (Section 108)</Text>
               <Text style={[styles.infoBody, { color: theme.text }]}>• <Text style={[styles.boldText, { color: theme.accentGold }]}>Open Every Game!</Text> The Cove is our biggest destination bar, right at home directly adjacent to our home base in Section 108.</Text>
             </View>
             <View style={[styles.infoBox, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}>
@@ -354,9 +362,10 @@ export default function HomeScreen() {
     }
   };
 
+
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
-      <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.cardBg} />
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]} edges={['left', 'right']}>
+      <StatusBar style={theme.isDark ? 'light' : 'dark'} />
       
       <ScrollView 
         contentContainerStyle={styles.contentPadding}
@@ -369,13 +378,11 @@ export default function HomeScreen() {
           />
         }
       >
-        {/* Banner */}
         <View style={[styles.welcomeBanner, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}>
           <Text style={[styles.bannerTitle, { color: theme.accentGold }]}>SJ BATTERY PACK</Text>
           <Text style={[styles.bannerSubtitle, { color: theme.text }]}>The Loudest Supporter Group in the AHL 🪸</Text>
         </View>
 
-        {/* 1. 📍 GAMEDAY HQ */}
         {loading ? (
           <View style={[styles.loaderContainer, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
             <ActivityIndicator size="small" color={theme.accentGold} />
@@ -419,7 +426,6 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* 2. 🦈 DEFEND THE REEF */}
         <View style={[styles.aboutCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
           <Text style={[styles.sectionHeader, { color: theme.accentGold }]}>🦈 DEFEND THE REEF. GIVE BACK.</Text>
           <Text style={[styles.aboutText, { color: theme.subText }]}>
@@ -430,25 +436,13 @@ export default function HomeScreen() {
           </Text>
         </View>
 
-        {/* 3. 🏒 NEXT 3 MATCHUPS */}
         <NextMatchups key={`next-matchups-${refreshKey}`} />
 
-        {/* 4. 📊 LAST ENCOUNTER */}
-        <LastEncounter 
-          key={`last-encounter-${refreshKey}`}
-          opponentAbbr="BAK"
-          opponentName="Bakersfield Condors"
-          gameDate="JAN 21, 2026"
-          scoreSJ={4}
-          scoreOpp={2}
-          isWin={true}
-          gameFact="Barracuda recorded 34 shots on goal and held Bakersfield scoreless on 3 power play opportunities."
-        />
+        {React.createElement(LastEncounter, { key: `last-encounter-${refreshKey}` })}
 
-        {/* 5. 🏆 AHL STANDINGS */}
+
         <Standings key={`standings-${refreshKey}`} />
 
-        {/* 6. 🪸 FAN HUB */}
         <Text style={[styles.blockTitleCentered, { color: theme.accentGold }]}>⚡️ FAN HUB</Text>
         
         <View style={styles.gridRow}>
@@ -475,7 +469,6 @@ export default function HomeScreen() {
             <Text style={[styles.gridButtonText, { color: theme.text }]}>👕 Swag Store</Text>
           </TouchableOpacity>
           
-          {/* ✅ Fixed text padding/sizing for Fan Gallery */}
           <TouchableOpacity 
             style={[styles.gridButton, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]} 
             onPress={() => router.push({ pathname: '/(drawer)/fanzone', params: { tab: 'GALLERY' } })}
@@ -485,9 +478,9 @@ export default function HomeScreen() {
         </View>
       </ScrollView>
 
-      {/* Interactive Game Day Overlay Guide Modal */}
+      {/* REEF KNOW BEFORE YOU GO MODAL */}
       <Modal
-        animationType="slide"
+        animationType="fade"
         transparent={true}
         visible={infoModalVisible}
         onRequestClose={() => setInfoModalVisible(false)}
@@ -495,7 +488,6 @@ export default function HomeScreen() {
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContainer, { backgroundColor: theme.cardBg, borderColor: theme.accentGold }]}>
             
-            {/* Modal Header with Close 'X' Button */}
             <View style={styles.modalTopHeaderBar}>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.modalHeader, { color: theme.accentGold }]}>🏟️ REEF KNOW BEFORE YOU GO</Text>
@@ -510,7 +502,7 @@ export default function HomeScreen() {
               <TouchableOpacity 
                 onPress={() => setInfoModalVisible(false)}
                 style={styles.modalCloseIconBtn}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               >
                 <Text style={[styles.modalCloseIconText, { color: theme.accentGold }]}>✕</Text>
               </TouchableOpacity>
@@ -543,13 +535,23 @@ export default function HomeScreen() {
               </ScrollView>
             </View>
 
-            <ScrollView style={styles.modalScrollView} contentContainerStyle={styles.modalScrollPadding}>
-              {renderTabContent()}
-            </ScrollView>
+            {/* Scrollable Container with exact flex bounds */}
+            <View style={{ flex: 1, overflow: 'hidden' }}>
+              <ScrollView 
+                style={styles.modalScrollView} 
+                contentContainerStyle={styles.modalScrollPadding}
+                nestedScrollEnabled={true}
+                showsVerticalScrollIndicator={true}
+                bounces={false}
+              >
+                {renderTabContent()}
+              </ScrollView>
+            </View>
 
             <TouchableOpacity 
-              style={[styles.closeModalButton, { backgroundColor: theme.bg, borderTopColor: theme.borderColor }]}
+              style={[styles.closeModalButton, { backgroundColor: theme.subCardBg, borderTopColor: theme.borderColor }]}
               onPress={() => setInfoModalVisible(false)}
+              activeOpacity={0.8}
             >
               <Text style={[styles.closeModalButtonText, { color: theme.accentGold }]}>Return to Home</Text>
             </TouchableOpacity>
@@ -557,7 +559,6 @@ export default function HomeScreen() {
           </View>
         </View>
       </Modal>
-
     </SafeAreaView>
   );
 }
@@ -587,25 +588,56 @@ const styles = StyleSheet.create({
   gridButton: { width: '48%', padding: 14, borderRadius: 12, alignItems: 'center', borderWidth: 1 },
   gridButtonText: { fontSize: 13, fontWeight: '900' },
 
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'center', alignItems: 'center', paddingTop: 40, paddingBottom: 20 },
-  modalContainer: { width: '92%', height: '85%', borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
+  modalOverlay: { 
+    flex: 1, 
+    backgroundColor: 'rgba(0,0,0,0.85)', 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    paddingHorizontal: 16,
+  },
+  modalContainer: { 
+    width: '100%', 
+    height: SCREEN_HEIGHT * 0.82, 
+    borderRadius: 16, 
+    borderWidth: 1.5, 
+    overflow: 'hidden', 
+    flexDirection: 'column',
+  },
   
-  modalTopHeaderBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 },
-  modalHeader: { fontSize: 16, fontWeight: '900', textAlign: 'left', letterSpacing: 0.5 },
+  modalTopHeaderBar: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'flex-start', 
+    paddingHorizontal: 16, 
+    paddingTop: 16, 
+    paddingBottom: 10 
+  },
+  modalHeader: { fontSize: 15, fontWeight: '900', textAlign: 'left', letterSpacing: 0.5 },
   modalSub: { fontSize: 11, textAlign: 'left', fontWeight: '700', marginTop: 2 },
   modalCloseIconBtn: { padding: 4 },
   modalCloseIconText: { fontSize: 20, fontWeight: '900' },
   
-  tabBarRow: { flexDirection: 'row', borderBottomWidth: 1, paddingHorizontal: 8, paddingBottom: 6 },
-  tabItemButton: { paddingVertical: 6, paddingHorizontal: 8, borderRadius: 16, marginRight: 6, borderWidth: 1 },
+  tabBarRow: { 
+    flexDirection: 'row', 
+    borderBottomWidth: 1, 
+    paddingHorizontal: 12, 
+    paddingBottom: 8,
+    paddingTop: 2,
+  },
+  tabItemButton: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 16, marginRight: 8, borderWidth: 1 },
   tabItemText: { fontSize: 11, fontWeight: '700' },
 
-  modalScrollView: { flex: 1 },
-  modalScrollPadding: { padding: 16, paddingBottom: 30 },
+  modalScrollView: { 
+    flex: 1, 
+  },
+  modalScrollPadding: { 
+    padding: 16, 
+    paddingBottom: 24, 
+  },
   
   infoBox: { padding: 12, borderRadius: 10, marginBottom: 10, borderWidth: 1 },
-  infoTitle: { fontSize: 14, fontWeight: 'bold', marginBottom: 4 },
-  infoBody: { fontSize: 13, lineHeight: 18, fontWeight: '500', marginBottom: 4 },
+  infoTitle: { fontSize: 13, fontWeight: 'bold', marginBottom: 6 },
+  infoBody: { fontSize: 12, lineHeight: 18, fontWeight: '500', marginBottom: 4 },
   boldText: { fontWeight: 'bold' },
 
   foHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginBottom: 4 },
@@ -618,13 +650,18 @@ const styles = StyleSheet.create({
   matchedEventBadge: { fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
   matchedEventTimeRow: { marginTop: 2, marginBottom: 2 },
   matchedEventTime: { fontSize: 12, fontWeight: '800' },
-  matchedEventTitle: { fontSize: 16, fontWeight: '900', marginTop: 2, marginBottom: 4 },
+  matchedEventTitle: { fontSize: 15, fontWeight: '900', marginTop: 2, marginBottom: 4 },
   matchedEventLoc: { fontSize: 11, fontWeight: '700', marginBottom: 4 },
   matchedEventDesc: { fontSize: 12, lineHeight: 17, fontWeight: '500' },
 
-  actionLinkButton: { padding: 10, borderRadius: 8, alignItems: 'center', marginTop: 4, marginBottom: 10 },
+  actionLinkButton: { padding: 12, borderRadius: 8, alignItems: 'center', marginTop: 4, marginBottom: 10 },
   actionLinkText: { color: '#FFFFFF', fontSize: 13, fontWeight: 'bold' },
   
-  closeModalButton: { padding: 14, alignItems: 'center', borderTopWidth: 1 },
-  closeModalButtonText: { fontSize: 14, fontWeight: 'bold' }
+  closeModalButton: { 
+    paddingVertical: 14, 
+    alignItems: 'center', 
+    justifyContent: 'center',
+    borderTopWidth: 1,
+  },
+  closeModalButtonText: { fontSize: 14, fontWeight: '900' }
 });

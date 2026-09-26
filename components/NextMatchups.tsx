@@ -1,7 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, ActivityIndicator } from 'react-native';
-import { fetchBarracudaSchedule, GameScheduleItem } from '../services/ahlApi';
+import { supabase } from '../supabase';
 import { useAppTheme } from '../context/ThemeContext';
+
+interface GameScheduleItem {
+  id: string;
+  game_date: string;
+  date_display?: string;
+  game_time: string;
+  opponent: string;
+  home_away: 'HOME' | 'AWAY';
+  venue?: string;
+  theme_night?: string;
+}
 
 interface TeamTheme {
   name: string;
@@ -25,16 +36,19 @@ const TEAM_THEMES: Record<string, TeamTheme> = {
 };
 
 function getTeamDetails(fullName: string): TeamTheme {
-  const lower = fullName.toLowerCase();
+  const lower = (fullName || '').toLowerCase();
   for (const key of Object.keys(TEAM_THEMES)) {
     if (lower.includes(key)) {
       return TEAM_THEMES[key];
     }
   }
-  const cleanName = fullName.replace(/(San Jose|San Diego|Colorado|Ontario|Bakersfield|Calgary|Abbotsford|Tucson|Coachella Valley|Henderson|Texas|Chicago)\s+/i, '').trim();
+  const cleanName = (fullName || '')
+    .replace(/(San Jose|San Diego|Colorado|Ontario|Bakersfield|Calgary|Abbotsford|Tucson|Coachella Valley|Henderson|Texas|Chicago)\s+/i, '')
+    .trim();
+
   return {
-    name: cleanName || fullName,
-    abbr: cleanName.substring(0, 3).toUpperCase(),
+    name: cleanName || fullName || 'Opponent',
+    abbr: cleanName ? cleanName.substring(0, 3).toUpperCase() : 'OPP',
     primaryColor: '#002F35',
     textColor: '#DD8943',
   };
@@ -43,20 +57,33 @@ function getTeamDetails(fullName: string): TeamTheme {
 export default function NextMatchups() {
   const { theme } = useAppTheme();
   const [games, setGames] = useState<GameScheduleItem[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let isMounted = true;
-    fetchBarracudaSchedule()
-      .then((data) => {
+
+    const fetchSchedule = async () => {
+      try {
+        const todayString = new Date().toLocaleDateString('sv-SE');
+        const { data, error } = await supabase
+          .from('schedule')
+          .select('*')
+          .gte('game_date', todayString)
+          .order('game_date', { ascending: true })
+          .limit(4);
+
+        if (error) throw error;
         if (isMounted && Array.isArray(data)) {
-          setGames(data.slice(0, 4));
+          setGames(data);
         }
-      })
-      .catch(() => {})
-      .finally(() => {
+      } catch (err) {
+        console.warn('NextMatchups Supabase schedule query fallback:', err);
+      } finally {
         if (isMounted) setLoading(false);
-      });
+      }
+    };
+
+    fetchSchedule();
 
     return () => {
       isMounted = false;
@@ -77,32 +104,26 @@ export default function NextMatchups() {
           <ActivityIndicator color={theme.accentGold} size="small" />
         </View>
       ) : (
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false} 
-          contentContainerStyle={styles.scrollList}
-        >
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scrollList}>
           {safeGames.map((game) => {
-            const isHome = game.homeAway === 'HOME';
+            const isHome = game.home_away === 'HOME';
             const opp = getTeamDetails(game.opponent);
 
             return (
-              <View 
-                key={game.id || Math.random().toString()} 
-                style={[
-                  styles.matchupCard, 
-                  { backgroundColor: theme.cardBg, borderColor: theme.borderColor }
-                ]}
+              <View
+                key={game.id || Math.random().toString()}
+                style={[styles.matchupCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
               >
                 <View style={styles.cardHeader}>
                   <View style={[styles.badge, isHome ? styles.homeBadge : styles.awayBadge]}>
-                    <Text style={styles.badgeText}>{game.homeAway}</Text>
+                    <Text style={styles.badgeText}>{game.home_away}</Text>
                   </View>
-                  <Text style={[styles.dateText, { color: theme.subText }]}>{game.date}</Text>
+                  <Text style={[styles.dateText, { color: theme.subText }]}>
+                    {game.date_display || game.game_date}
+                  </Text>
                 </View>
 
                 <View style={styles.teamsRow}>
-                  {/* San Jose Barracuda: Teal fill (#266B73) + Solid Black Outline */}
                   <View style={styles.teamCol}>
                     <View style={[styles.teamCircle, styles.sjCircle]}>
                       <Text style={styles.sjCircleText}>SJ</Text>
@@ -112,7 +133,6 @@ export default function NextMatchups() {
 
                   <Text style={[styles.vsText, { color: theme.accentGold }]}>VS</Text>
 
-                  {/* Opponent */}
                   <View style={styles.teamCol}>
                     <View style={[styles.teamCircle, { backgroundColor: opp.primaryColor, borderColor: opp.textColor }]}>
                       <Text style={[styles.teamCircleText, { color: opp.textColor }]}>{opp.abbr}</Text>
@@ -124,13 +144,15 @@ export default function NextMatchups() {
                 </View>
 
                 <View style={[styles.cardFooter, { borderTopColor: theme.borderColor }]}>
-                  <Text style={[styles.timeText, { color: theme.text }]}>⏰ {game.time}</Text>
-                  <Text style={[styles.venueText, { color: theme.subText }]} numberOfLines={1}>📍 {game.venue}</Text>
-                  {game.themeNight && (
+                  <Text style={[styles.timeText, { color: theme.text }]}>⏰ {game.game_time}</Text>
+                  <Text style={[styles.venueText, { color: theme.subText }]} numberOfLines={1}>
+                    📍 {game.venue || (isHome ? 'Tech CU Arena' : 'Away Arena')}
+                  </Text>
+                  {game.theme_night ? (
                     <Text style={[styles.themeText, { color: theme.accentGold }]} numberOfLines={1}>
-                      🎉 {game.themeNight}
+                      🎉 {game.theme_night}
                     </Text>
-                  )}
+                  ) : null}
                 </View>
               </View>
             );

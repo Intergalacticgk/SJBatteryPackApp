@@ -17,7 +17,7 @@ import { supabase } from '../../supabase';
 export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
-  const [isCodeSent, setIsCodeSent] = useState(false); // Tracks if we should show the OTP input
+  const [isCodeSent, setIsCodeSent] = useState(false);
   
   // Form State
   const [phone, setPhone] = useState('');
@@ -38,7 +38,6 @@ export default function LoginScreen() {
       return;
     }
 
-    // Format phone number to E.164 format (e.g. +14085551234)
     let formattedPhone = phone.replace(/\D/g, ''); 
     if (formattedPhone.length === 10) {
       formattedPhone = `+1${formattedPhone}`;
@@ -51,7 +50,6 @@ export default function LoginScreen() {
       const { error } = await supabase.auth.signInWithOtp({
         phone: formattedPhone,
         options: {
-          // If they are signing up, attach their profile data to the creation request!
           data: isSignUp ? {
             full_name: fullName,
             birthday: `${birthMonth}/${birthDay}`,
@@ -61,7 +59,6 @@ export default function LoginScreen() {
 
       if (error) throw error;
       
-      // Success! Swap the UI to ask for the code
       setIsCodeSent(true);
       Alert.alert('Code Sent! 🦈', 'Check your text messages for the 6-digit code.');
       
@@ -92,8 +89,6 @@ export default function LoginScreen() {
       });
 
       if (error) throw error;
-      
-      // 🚀 Success! The _layout.tsx traffic cop will automatically detect the login and redirect to the Drawer!
     } catch (error: any) {
       Alert.alert('Verification Error', 'That code is incorrect or expired. Please try again.');
     } finally {
@@ -122,15 +117,13 @@ export default function LoginScreen() {
 
         {/* Card Container */}
         <View style={styles.cardContainer}>
-          
-          {/* ----- UI STATE 2: VERIFY CODE ----- */}
           {isCodeSent ? (
             <>
               <Text style={styles.welcomeText}>Verify Your Number</Text>
               <Text style={styles.instructionsText}>We sent a 6-digit code to {phone}</Text>
 
               <TextInput
-                style={[styles.input, { textAlign: 'center', fontSize: 24, tracking: 5 }]}
+                style={[styles.input, { textAlign: 'center', fontSize: 24, letterSpacing: 5 }]}
                 placeholder="000000"
                 placeholderTextColor="#80B3B8"
                 keyboardType="number-pad"
@@ -148,14 +141,11 @@ export default function LoginScreen() {
               </TouchableOpacity>
             </>
           ) : (
-            
-            /* ----- UI STATE 1: REQUEST CODE ----- */
             <>
               <Text style={styles.welcomeText}>
                 {isSignUp ? 'Join the Section 108 Pack' : 'Welcome to the Reef 🏒🪸'}
               </Text>
 
-              {/* Sign Up Exclusive Fields */}
               {isSignUp && (
                 <>
                   <TextInput
@@ -188,7 +178,6 @@ export default function LoginScreen() {
                 </>
               )}
 
-              {/* Phone Input */}
               <TextInput
                 style={styles.input}
                 placeholder="Phone Number (10 digits)"
@@ -198,12 +187,10 @@ export default function LoginScreen() {
                 onChangeText={setPhone}
               />
 
-              {/* Action Button */}
               <TouchableOpacity style={styles.primaryButton} onPress={handleSendCode} disabled={loading}>
                 {loading ? <ActivityIndicator color="#002F35" /> : <Text style={styles.primaryButtonText}>Send SMS Code</Text>}
               </TouchableOpacity>
 
-              {/* Toggle View */}
               <TouchableOpacity onPress={() => setIsSignUp(!isSignUp)}>
                 <Text style={styles.toggleText}>
                   {isSignUp
@@ -213,7 +200,6 @@ export default function LoginScreen() {
               </TouchableOpacity>
             </>
           )}
-
         </View>
       </ScrollView>
     </SafeAreaView>

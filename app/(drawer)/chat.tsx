@@ -3,27 +3,27 @@ import {
   StyleSheet,
   Text,
   View,
-  SafeAreaView,
   TouchableOpacity,
   FlatList,
   TextInput,
   ActivityIndicator,
   Platform,
-  StatusBar,
   Alert,
   Modal,
   Dimensions,
   Keyboard,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { Image } from 'expo-image';
 import { useRouter, useFocusEffect } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system/legacy';
+import * as FileSystem from 'expo-file-system';
 import { decode } from 'base64-arraybuffer';
 import { supabase } from '../../supabase';
 import { useAppTheme } from '../../context/ThemeContext';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const SCREEN_WIDTH = Dimensions.get('window').width;
 const GIF_WIDTH = (SCREEN_WIDTH - 48) / 2;
 
 // Production Public GIPHY Key
@@ -42,7 +42,7 @@ interface ChatMessage {
 }
 
 const ROOMS = [
-  { id: 'general', title: 'General', desc: 'Live reactions from Tech CU Arena' },
+  { id: 'general', title: '🗣️ General', desc: 'Live reactions from Tech CU Arena' },
   { id: 'watch-parties', title: '🍻 Watch Parties', desc: 'Away game meetups & bar spots' },
   { id: 'merch', title: '🎟️ Merch & Tickets', desc: 'Ticket exchanges and fan gear' },
   { id: 'prospects', title: '⭐ Prospect Talk', desc: 'Sharks & Cuda prospect development' },
@@ -70,6 +70,7 @@ const FALLBACK_GIFS = [
 export default function ChatScreen() {
   const { theme } = useAppTheme();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const [session, setSession] = useState<any>(null);
   const [currentUserProfile, setCurrentUserProfile] = useState<any>(null);
@@ -81,6 +82,7 @@ export default function ChatScreen() {
   const [inputText, setInputText] = useState('');
   const [sending, setSending] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  
   const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   // Media & Giphy State
@@ -95,19 +97,22 @@ export default function ChatScreen() {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
 
-    const onShow = Keyboard.addListener(showEvent, (e) => {
-      const extraOffset = Platform.OS === 'android' ? 32 : 0;
-      setKeyboardHeight(e.endCoordinates.height + extraOffset);
+    const onShow = (e: any) => {
+      const rawHeight = e.endCoordinates.height;
+      setKeyboardHeight(rawHeight);
       setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
-    });
+    };
 
-    const onHide = Keyboard.addListener(hideEvent, () => {
+    const onHide = () => {
       setKeyboardHeight(0);
-    });
+    };
+
+    const showSub = Keyboard.addListener(showEvent, onShow);
+    const hideSub = Keyboard.addListener(hideEvent, onHide);
 
     return () => {
-      onShow.remove();
-      onHide.remove();
+      showSub.remove();
+      hideSub.remove();
     };
   }, []);
 
@@ -403,8 +408,8 @@ export default function ChatScreen() {
 
   if (!session) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
-        <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.cardBg} />
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]} edges={['left', 'right', 'bottom']}>
+        <StatusBar style={theme.isDark ? 'light' : 'dark'} />
         <View style={styles.loggedOutContainer}>
           <View style={[styles.loggedOutCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
             <Text style={styles.loggedOutIcon}>🔒</Text>
@@ -425,10 +430,10 @@ export default function ChatScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
-      <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.cardBg} />
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]} edges={['left', 'right']}>
+      <StatusBar style={theme.isDark ? 'light' : 'dark'} />
 
-      <View style={[styles.flexContainer, { paddingBottom: keyboardHeight }]}>
+      <View style={styles.flexContainer}>
         {/* Room Selector Tabs */}
         <View style={[styles.roomsContainer, { backgroundColor: theme.cardBg, borderBottomColor: theme.borderColor }]}>
           <FlatList
@@ -481,64 +486,76 @@ export default function ChatScreen() {
         </View>
 
         {/* Messages Feed */}
-        {loading ? (
-          <View style={styles.loaderCenter}>
-            <ActivityIndicator size="large" color={theme.accentGold} />
-          </View>
-        ) : (
-          <FlatList
-            ref={flatListRef}
-            data={filteredMessages}
-            keyExtractor={(item) => item.id || String(Math.random())}
-            contentContainerStyle={styles.messagesPadding}
-            onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
-            keyboardShouldPersistTaps="handled"
-            renderItem={({ item }) => {
-              const isMine = item.user_id === session?.user?.id;
-              const formattedTime = new Date(item.created_at || Date.now()).toLocaleTimeString([], {
-                hour: 'numeric',
-                minute: '2-digit',
-              });
-              const displayMsg = item.content || item.message || '';
+        <View style={styles.feedContainer}>
+          {loading ? (
+            <View style={styles.loaderCenter}>
+              <ActivityIndicator size="large" color={theme.accentGold} />
+            </View>
+          ) : (
+            <FlatList
+              ref={flatListRef}
+              data={filteredMessages}
+              keyExtractor={(item) => item.id || String(Math.random())}
+              contentContainerStyle={styles.messagesPadding}
+              onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+              keyboardShouldPersistTaps="handled"
+              renderItem={({ item }) => {
+                const isMine = item.user_id === session?.user?.id;
+                const formattedTime = new Date(item.created_at || Date.now()).toLocaleTimeString([], {
+                  hour: 'numeric',
+                  minute: '2-digit',
+                });
+                const displayMsg = item.content || item.message || '';
 
-              return (
-                <View style={[styles.messageBubbleWrapper, isMine ? styles.myBubbleWrapper : styles.otherBubbleWrapper]}>
-                  <Text style={[styles.senderHandle, { color: theme.accentGold }, isMine && { textAlign: 'right' }]}>
-                    {item.username}
-                  </Text>
-                  <View
-                    style={[
-                      styles.messageBubble,
-                      isMine
-                        ? { backgroundColor: theme.accentOrange, alignSelf: 'flex-end' }
-                        : { backgroundColor: theme.cardBg, borderColor: theme.borderColor, borderWidth: 1, alignSelf: 'flex-start' },
-                    ]}
-                  >
-                    {item.media_url ? (
-                      <Image
-                        source={{ uri: item.media_url }}
-                        contentFit="cover"
-                        transition={200}
-                        cachePolicy="memory-disk"
-                        style={styles.bubbleMedia}
-                      />
-                    ) : (
-                      <Text style={[styles.messageText, { color: isMine ? '#FFFFFF' : theme.text }]}>
-                        {displayMsg}
-                      </Text>
-                    )}
-                    <Text style={[styles.messageTime, { color: isMine ? 'rgba(255,255,255,0.7)' : theme.subText }]}>
-                      {formattedTime}
+                return (
+                  <View style={[styles.messageBubbleWrapper, isMine ? styles.myBubbleWrapper : styles.otherBubbleWrapper]}>
+                    <Text style={[styles.senderHandle, { color: theme.accentGold }, isMine && { textAlign: 'right' }]}>
+                      {item.username}
                     </Text>
+                    <View
+                      style={[
+                        styles.messageBubble,
+                        isMine
+                          ? { backgroundColor: theme.accentOrange, alignSelf: 'flex-end' }
+                          : { backgroundColor: theme.cardBg, borderColor: theme.borderColor, borderWidth: 1, alignSelf: 'flex-start' },
+                      ]}
+                    >
+                      {item.media_url ? (
+                        <Image
+                          source={{ uri: item.media_url }}
+                          contentFit="cover"
+                          transition={200}
+                          cachePolicy="memory-disk"
+                          style={styles.bubbleMedia}
+                        />
+                      ) : (
+                        <Text style={[styles.messageText, { color: isMine ? '#FFFFFF' : theme.text }]}>
+                          {displayMsg}
+                        </Text>
+                      )}
+                      <Text style={[styles.messageTime, { color: isMine ? 'rgba(255,255,255,0.7)' : theme.subText }]}>
+                        {formattedTime}
+                      </Text>
+                    </View>
                   </View>
-                </View>
-              );
-            }}
-          />
-        )}
+                );
+              }}
+            />
+          )}
+        </View>
 
-        {/* Message Input Toolbar */}
-        <View style={[styles.inputBar, { backgroundColor: theme.cardBg, borderTopColor: theme.borderColor }]}>
+        {/* Message Input Toolbar - Anchored with boosted bottom margin */}
+        <View
+          style={[
+            styles.inputBar,
+            {
+              backgroundColor: theme.cardBg,
+              borderTopColor: theme.borderColor,
+              paddingBottom: keyboardHeight > 0 ? 8 : Math.max(insets.bottom, 12),
+              marginBottom: keyboardHeight > 0 ? keyboardHeight + 48 : 0,
+            },
+          ]}
+        >
           <TouchableOpacity style={[styles.iconButton, { backgroundColor: theme.subCardBg }]} onPress={handlePickAndSendImage}>
             <Text style={{ fontSize: 18 }}>📎</Text>
           </TouchableOpacity>
@@ -572,7 +589,7 @@ export default function ChatScreen() {
         </View>
       </View>
 
-      {/* GIPHY Selection Modal */}
+      {/* GIPHY Modal */}
       <Modal visible={gifModalVisible} animationType="slide" transparent onRequestClose={() => setGifModalVisible(false)}>
         <View style={styles.gifModalOverlay}>
           <View style={[styles.gifModalContainer, { backgroundColor: theme.cardBg, borderColor: theme.accentGold }]}>
@@ -676,6 +693,7 @@ const styles = StyleSheet.create({
   roomTabText: { fontSize: 12, fontWeight: '700' },
   searchRow: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 12, marginTop: 8, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1 },
   searchInput: { flex: 1, fontSize: 12, fontWeight: '600' },
+  feedContainer: { flex: 1 },
   messagesPadding: { padding: 14, paddingBottom: 16 },
   messageBubbleWrapper: { marginBottom: 12, maxWidth: '82%' },
   myBubbleWrapper: { alignSelf: 'flex-end' },
@@ -689,7 +707,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingHorizontal: 8,
     paddingVertical: 8,
-    paddingBottom: Platform.OS === 'android' ? 16 : 8,
     borderTopWidth: 1,
     alignItems: 'center',
     gap: 6,

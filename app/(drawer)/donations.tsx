@@ -3,26 +3,24 @@ import {
   StyleSheet,
   Text,
   View,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
-  StatusBar,
   Modal,
   TextInput,
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import * as WebBrowser from 'expo-web-browser';
 import { useAppTheme } from '../../context/ThemeContext';
 import { supabase } from '../../supabase';
 
-// REPLACE THIS with your actual Stripe Payment Link
 const STRIPE_DONATION_LINK = 'https://buy.stripe.com/fZu3cxaYYbCw1lE0SvfrW00';
 
 export default function DonationsScreen() {
   const { theme } = useAppTheme();
 
-  // Volunteer Modal State
   const [modalVisible, setModalVisible] = useState(false);
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -58,7 +56,6 @@ export default function DonationsScreen() {
         'Your interest has been received! We will reach out when new community service initiatives, clean-ups, and drives are scheduled.'
       );
 
-      // Reset Form & Close
       setFullName('');
       setEmail('');
       setPhone('');
@@ -73,8 +70,8 @@ export default function DonationsScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
-      <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.cardBg} />
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]} edges={['left', 'right']}>
+      <StatusBar style={theme.isDark ? 'light' : 'dark'} />
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Banner Section */}
@@ -154,7 +151,7 @@ export default function DonationsScreen() {
           </View>
         </View>
 
-        {/* Future of Our Mission & Volunteer Sign-Up CTA */}
+        {/* Future of Our Mission CTA */}
         <View style={[styles.contentCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
           <Text style={[styles.sectionTitle, { color: theme.accentGold }]}>The Future of Our Mission</Text>
           <Text style={[styles.bodyText, { color: theme.text }]}>
@@ -276,7 +273,6 @@ const styles = StyleSheet.create({
   initiativeBlock: { paddingLeft: 12, borderLeftWidth: 3, marginBottom: 16 },
   initiativeTitle: { fontSize: 14, fontWeight: '800', marginBottom: 4 },
 
-  // Modal Styles
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'center', alignItems: 'center', padding: 16 },
   modalContent: { width: '100%', borderRadius: 16, borderWidth: 1, padding: 18 },
   modalHeaderTitle: { fontSize: 16, fontWeight: '900', textAlign: 'center', letterSpacing: 0.5 },

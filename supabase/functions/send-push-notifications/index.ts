@@ -10,30 +10,59 @@ Deno.serve(async (req) => {
     const { record, type } = payload; // Triggered by Database Webhook or Cron
 
     // 💬 A. CHAT MESSAGE NOTIFICATION
-    if (record?.message && record?.room) {
-      // Get all active push tokens except the sender
-      const { data: profiles } = await supabase
+    // Handles various possible column names: message / message_text / content, room / room_name / channel
+    const messageContent = record?.message || record?.message_text || record?.content;
+    const roomName = record?.room || record?.room_name || record?.channel || 'General';
+    const senderName = record?.username || record?.user_name || 'Supporter';
+    const senderId = record?.user_id;
+
+    if (messageContent) {
+      // 1. Get all active push tokens except the sender
+      let query = supabase
         .from('profiles')
-        .select('expo_push_token')
-        .neq('id', record.user_id)
+        .select('expo_push_token, id')
         .not('expo_push_token', 'is', null);
 
-      const tokens = profiles?.map((p: any) => p.expo_push_token).filter(Boolean) || [];
+      if (senderId) {
+        query = query.neq('id', senderId);
+      }
+
+      const { data: profiles } = await query;
+
+      const tokens = (profiles || [])
+        .map((p: any) => p.expo_push_token)
+        .filter((t: string) => t && t.startsWith('ExponentPushToken'));
 
       if (tokens.length > 0) {
+        const preview = messageContent.length > 90
+          ? `${messageContent.substring(0, 87)}...`
+          : messageContent;
+
         const messages = tokens.map((token: string) => ({
           to: token,
           sound: 'default',
-          title: `💬 #${record.room} • ${record.username}`,
-          body: record.message,
-          data: { screen: '/(drawer)/chat', room: record.room },
+          title: `💬 #${roomName} • ${senderName}`,
+          body: preview,
+          data: {
+            screen: '/(drawer)/chat',
+            room: roomName,
+            roomId: record?.room_id || record?.room || 'general',
+            messageId: record?.id,
+          },
         }));
 
-        await fetch('https://exp.host/--/api/v2/push/send', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(messages),
-        });
+        // Chunk into batches of 100 for Expo Push API limits
+        for (let i = 0; i < messages.length; i += 100) {
+          const chunk = messages.slice(i, i + 100);
+          await fetch('https://exp.host/--/api/v2/push/send', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: JSON.stringify(chunk),
+          });
+        }
       }
     }
 
@@ -44,10 +73,12 @@ Deno.serve(async (req) => {
         .select('expo_push_token')
         .not('expo_push_token', 'is', null);
 
-      const tokens = profiles?.map((p: any) => p.expo_push_token).filter(Boolean) || [];
+      const tokens = (profiles || [])
+        .map((p: any) => p.expo_push_token)
+        .filter((t: string) => t && t.startsWith('ExponentPushToken'));
 
       if (tokens.length > 0) {
-        const messages = tokens.map((token: string) => ({
+        const gamedayMessages = tokens.map((token: string) => ({
           to: token,
           sound: 'default',
           title: "🚨 IT'S GAMEDAY IN CUDA COUNTRY!",
@@ -55,11 +86,17 @@ Deno.serve(async (req) => {
           data: { screen: '/(drawer)/fanzone' },
         }));
 
-        await fetch('https://exp.host/--/api/v2/push/send', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(messages),
-        });
+        for (let i = 0; i < gamedayMessages.length; i += 100) {
+          const chunk = gamedayMessages.slice(i, i + 100);
+          await fetch('https://exp.host/--/api/v2/push/send', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: JSON.stringify(chunk),
+          });
+        }
       }
     }
 

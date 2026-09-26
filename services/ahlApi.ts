@@ -1,3 +1,5 @@
+import { supabase } from '../supabase';
+
 export interface RosterPlayer {
   id: string;
   number: string;
@@ -100,7 +102,6 @@ export async function fetchBarracudaSchedule(): Promise<GameScheduleItem[]> {
     console.warn('Supabase schedule query fallback:', err);
   }
 
-  // Instant Fallback with Official 2026-27 Schedule
   return [
     { id: '1', date: 'Sat, Oct 3, 2026', opponent: 'San Diego Gulls', homeAway: 'HOME', time: '3:00 PM', venue: 'Tech CU Arena', status: 'UPCOMING', themeNight: 'Opening Night • Giveaway: Magnet Schedules' },
     { id: '2', date: 'Sun, Oct 4, 2026', opponent: 'San Diego Gulls', homeAway: 'HOME', time: '3:00 PM', venue: 'Tech CU Arena', status: 'UPCOMING' },
@@ -115,7 +116,7 @@ export async function fetchBarracudaSchedule(): Promise<GameScheduleItem[]> {
   ];
 }
 
-// 2. 📊 OFFICIAL 2025-26 PACIFIC DIVISION FINAL STANDINGS (Live override ready)
+// 2. 📊 OFFICIAL 2025-26 PACIFIC DIVISION FINAL STANDINGS
 export async function fetchPacificStandings(): Promise<StandingItem[]> {
   try {
     const data = await safeFetch(
@@ -137,7 +138,6 @@ export async function fetchPacificStandings(): Promise<StandingItem[]> {
     }
   } catch {}
 
-  // Official End-of-Season Pacific Standings (72 GP)
   return [
     { rank: 1, team: 'Colorado Eagles', gp: 72, w: 43, l: 21, otl: 5, sol: 3, pts: 94, pct: '.653' },
     { rank: 2, team: 'Abbotsford Canucks', gp: 72, w: 44, l: 24, otl: 2, sol: 2, pts: 92, pct: '.639' },
@@ -152,7 +152,7 @@ export async function fetchPacificStandings(): Promise<StandingItem[]> {
   ];
 }
 
-// 3. 🏒 OFFICIAL 2025-26 BARRACUDA END-OF-SEASON ROSTER & STATS (Live override ready)
+// 3. 🏒 OFFICIAL 2025-26 BARRACUDA END-OF-SEASON ROSTER & STATS
 export async function fetchBarracudaRoster(): Promise<RosterPlayer[]> {
   try {
     const data = await safeFetch(
@@ -175,13 +175,9 @@ export async function fetchBarracudaRoster(): Promise<RosterPlayer[]> {
     }
   } catch {}
 
-  // Official End-of-Season Player Totals
   return [
-    // Goalies
     { id: 'g1', number: '30', name: 'Yaroslav Askarov', position: 'G', gp: 44, wins: 24, losses: 14, otl: 4, gaa: '2.48', svPct: '.916', so: 4 },
     { id: 'g2', number: '31', name: 'Georgi Romanov', position: 'G', gp: 29, wins: 12, losses: 13, otl: 3, gaa: '2.89', svPct: '.903', so: 2 },
-
-    // Forwards
     { id: 'f1', number: '22', name: 'Andrew Poturalski', position: 'F', gp: 59, goals: 30, assists: 43, points: 73, plusMinus: 6, pim: 34 },
     { id: 'f2', number: '75', name: 'Danil Gushchin', position: 'F', gp: 56, goals: 28, assists: 23, points: 51, plusMinus: -13, pim: 34 },
     { id: 'f3', number: '56', name: 'Ethan Cardwell', position: 'F', gp: 63, goals: 11, assists: 37, points: 48, plusMinus: 13, pim: 40 },
@@ -195,8 +191,6 @@ export async function fetchBarracudaRoster(): Promise<RosterPlayer[]> {
     { id: 'f11', number: '76', name: 'Anthony Vincent', position: 'F', gp: 68, goals: 10, assists: 9, points: 19, plusMinus: 7, pim: 88 },
     { id: 'f12', number: '52', name: 'Tristen Robins', position: 'F', gp: 41, goals: 7, assists: 11, points: 18, plusMinus: -12, pim: 17 },
     { id: 'f13', number: '67', name: 'Lucas Vanroboys', position: 'F', gp: 69, goals: 11, assists: 5, points: 16, plusMinus: 6, pim: 151 },
-
-    // Defensemen
     { id: 'd1', number: '42', name: 'Luca Cagnoni', position: 'D', gp: 64, goals: 16, assists: 36, points: 52, plusMinus: -7, pim: 28 },
     { id: 'd2', number: '36', name: 'Lucas Carlsson', position: 'D', gp: 45, goals: 10, assists: 13, points: 23, plusMinus: -1, pim: 26 },
     { id: 'd3', number: '59', name: 'Jimmy Schuldt', position: 'D', gp: 64, goals: 6, assists: 15, points: 21, plusMinus: 22, pim: 34 },
@@ -209,15 +203,12 @@ export async function fetchBarracudaRoster(): Promise<RosterPlayer[]> {
   ];
 }
 
-// 4. 🌟 PROSPECTS TRACKER (Live Sharks NHL API + End-of-Season Pipeline Fallback)
+// 4. 🌟 PROSPECTS TRACKER
 export async function fetchSharksProspects(): Promise<ProspectItem[]> {
   const defaultProspects: ProspectItem[] = [
-    // San Jose Sharks (NHL)
     { id: 'nhl-1', name: 'Macklin Celebrini', position: 'Center', currentTeam: 'San Jose Sharks', leagueGroup: 'San Jose Sharks (NHL)', draftInfo: '2024 Rd 1 (#1 overall)', gp: 70, statsSummary: '28G, 39A, 67 PTS' },
     { id: 'nhl-2', name: 'Will Smith', position: 'Center', currentTeam: 'San Jose Sharks', leagueGroup: 'San Jose Sharks (NHL)', draftInfo: '2023 Rd 1 (#4 overall)', gp: 68, statsSummary: '22G, 34A, 56 PTS' },
     { id: 'nhl-3', name: 'William Eklund', position: 'Left Wing', currentTeam: 'San Jose Sharks', leagueGroup: 'San Jose Sharks (NHL)', draftInfo: '2021 Rd 1 (#7 overall)', gp: 78, statsSummary: '24G, 41A, 65 PTS' },
-
-    // San Jose Barracuda (AHL)
     { id: 'ahl-1', name: 'Luca Cagnoni', position: 'Defenseman', currentTeam: 'San Jose Barracuda', leagueGroup: 'San Jose Barracuda (AHL)', draftInfo: '2023 Rd 4 (#123 overall)', gp: 64, statsSummary: '16G, 36A, 52 PTS' },
     { id: 'ahl-2', name: 'Danil Gushchin', position: 'Right Wing', currentTeam: 'San Jose Barracuda', leagueGroup: 'San Jose Barracuda (AHL)', draftInfo: '2020 Rd 3 (#76 overall)', gp: 56, statsSummary: '28G, 23A, 51 PTS' },
     { id: 'ahl-3', name: 'Ethan Cardwell', position: 'Right Wing', currentTeam: 'San Jose Barracuda', leagueGroup: 'San Jose Barracuda (AHL)', draftInfo: '2021 Rd 4 (#121 overall)', gp: 63, statsSummary: '11G, 37A, 48 PTS' },
@@ -225,12 +216,8 @@ export async function fetchSharksProspects(): Promise<ProspectItem[]> {
     { id: 'ahl-5', name: 'Collin Graf', position: 'Forward', currentTeam: 'San Jose Barracuda', leagueGroup: 'San Jose Barracuda (AHL)', draftInfo: 'NCAA Free Agent (2024)', gp: 40, statsSummary: '8G, 27A, 35 PTS' },
     { id: 'ahl-6', name: 'Filip Bystedt', position: 'Center', currentTeam: 'San Jose Barracuda', leagueGroup: 'San Jose Barracuda (AHL)', draftInfo: '2022 Rd 1 (#27 overall)', gp: 50, statsSummary: '12G, 19A, 31 PTS' },
     { id: 'ahl-7', name: 'Yaroslav Askarov', position: 'Goalie', currentTeam: 'San Jose Barracuda', leagueGroup: 'San Jose Barracuda (AHL)', draftInfo: '2020 Rd 1 (#11 overall)', gp: 44, statsSummary: '24-14-4, 2.48 GAA, .916 SV%' },
-
-    // Wichita Thunder (ECHL)
     { id: 'echl-1', name: 'Gabriel Carriere', position: 'Goalie', currentTeam: 'Wichita Thunder', leagueGroup: 'Wichita Thunder (ECHL)', draftInfo: 'Undrafted NCAA Free Agent', gp: 28, statsSummary: '16-9-2, 2.82 GAA, .914 SV%' },
     { id: 'echl-2', name: 'Jeremie Bucheler', position: 'Defenseman', currentTeam: 'Wichita Thunder', leagueGroup: 'Wichita Thunder (ECHL)', draftInfo: 'Undrafted Free Agent', gp: 54, statsSummary: '7G, 19A, 26 PTS' },
-
-    // Juniors & NCAA / Europe
     { id: 'jun-1', name: 'Sam Dickinson', position: 'Defenseman', currentTeam: 'London Knights (OHL)', leagueGroup: 'Juniors & NCAA / Europe', draftInfo: '2024 Rd 1 (#11 overall)', gp: 64, statsSummary: '24G, 58A, 82 PTS' },
     { id: 'jun-2', name: 'Igor Chernyshov', position: 'Left Wing', currentTeam: 'Saginaw Spirit (OHL)', leagueGroup: 'Juniors & NCAA / Europe', draftInfo: '2024 Rd 2 (#33 overall)', gp: 58, statsSummary: '29G, 41A, 70 PTS' },
     { id: 'jun-3', name: 'Kasper Halttunen', position: 'Right Wing', currentTeam: 'London Knights (OHL)', leagueGroup: 'Juniors & NCAA / Europe', draftInfo: '2023 Rd 2 (#36 overall)', gp: 62, statsSummary: '42G, 28A, 70 PTS' },

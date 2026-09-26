@@ -3,21 +3,27 @@
     "name": "SJ Battery Pack",
     "slug": "SJBatteryPackApp",
     "scheme": "sjbatterypack",
-    "version": "2.1.0",
+    "version": "2.1.18",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "userInterfaceStyle": "dark",
     "newArchEnabled": false,
+    "runtimeVersion": "2.1.18",
+    "updates": {
+      "url": "https://u.expo.dev/d4824861-c576-4382-91d9-c7ef0f26cf5f",
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
+    },
     "splash": {
       "image": "./assets/images/splash-logo.png",
       "resizeMode": "contain",
       "backgroundColor": "#001E22"
     },
     "ios": {
-      "deploymentTarget": "16.4",
       "supportsTablet": true,
       "bundleIdentifier": "com.sjbatterypack.myapp",
-      "buildNumber": "2.1.6",
+      "buildNumber": "2.1.18",
       "usesAppleSignIn": true,
       "icon": "./assets/images/icon.png",
       "splash": {
@@ -35,12 +41,13 @@
               "com.googleusercontent.apps.766194485121-oagm77katqfkibgri9qjan93t4dqe9so"
             ]
           }
-        ]
+        ],
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
       "package": "com.sjbatterypack.myapp",
-      "versionCode": 50,
+      "versionCode": 64,
       "softwareKeyboardLayoutMode": "resize",
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
@@ -50,7 +57,9 @@
       "permissions": [
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
-        "android.permission.READ_MEDIA_IMAGES"
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
@@ -96,11 +105,13 @@
         "expo-build-properties",
         {
           "android": {
-            "compileSdkVersion": 35,
-            "targetSdkVersion": 34,
-            "buildToolsVersion": "35.0.0",
-            "kotlinVersion": "1.9.24",
-            "gradleVersion": "8.8"
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36,
+            "buildToolsVersion": "36.0.0",
+            "kotlinVersion": "1.9.24"
+          },
+          "ios": {
+            "deploymentTarget": "16.4"
           }
         }
       ]

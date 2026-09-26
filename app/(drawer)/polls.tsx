@@ -3,14 +3,14 @@ import {
   StyleSheet,
   Text,
   View,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
-  Image,
   ActivityIndicator,
   Alert,
-  StatusBar,
 } from 'react-native';
+import { Image } from 'expo-image';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { supabase } from '../../supabase';
 import { useAppTheme } from '../../context/ThemeContext';
 
@@ -34,7 +34,10 @@ export default function PollsScreen() {
   const [votingId, setVotingId] = useState<string | null>(null);
 
   useEffect(() => {
+    let mounted = true;
+
     supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!mounted) return;
       setSession(session);
       loadPolls(session?.user?.id);
     });
@@ -47,6 +50,7 @@ export default function PollsScreen() {
       .subscribe();
 
     return () => {
+      mounted = false;
       supabase.removeChannel(channel);
     };
   }, []);
@@ -128,8 +132,8 @@ export default function PollsScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
-      <StatusBar barStyle={theme.isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.cardBg} />
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]} edges={['left', 'right']}>
+      <StatusBar style={theme.isDark ? 'light' : 'dark'} />
 
       <ScrollView contentContainerStyle={styles.contentPadding}>
         <View style={[styles.bannerCard, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}>
@@ -148,11 +152,10 @@ export default function PollsScreen() {
             return (
               <View
                 key={poll.id}
-                style={[styles.pollCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}
-              >
-                {poll.image_url && (
-                  <Image source={{ uri: poll.image_url }} style={styles.pollImage} resizeMode="cover" />
-                )}
+                style={[styles.pollCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                {poll.image_url ? (
+                  <Image source={{ uri: poll.image_url }} style={styles.pollImage} contentFit="cover" cachePolicy="memory-disk" />
+                ) : null}
 
                 <View style={styles.pollBody}>
                   <Text style={[styles.pollTitle, { color: theme.accentGold }]}>{poll.title}</Text>
@@ -177,7 +180,6 @@ export default function PollsScreen() {
                           disabled={hasVoted || votingId === poll.id}
                           activeOpacity={0.8}
                         >
-                          {/* Progress fill bar */}
                           {hasVoted && (
                             <View
                               style={[
