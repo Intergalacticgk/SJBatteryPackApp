@@ -343,7 +343,7 @@ export default function LastEncounter() {
               </TouchableOpacity>
             </View>
 
-            <ScrollView contentContainerStyle={styles.modalScroll}>
+            <ScrollView style={styles.modalScrollView} contentContainerStyle={styles.modalScroll} showsVerticalScrollIndicator={true}>
               <View style={[styles.modalScoreCard, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}>
                 <Text style={[styles.modalGameSub, { color: theme.subText }]}>San Jose Barracuda vs {opp.name}</Text>
                 <View style={styles.modalScoreNumbers}>
@@ -535,7 +535,8 @@ const styles = StyleSheet.create({
   modalHeaderTitle: { fontSize: 15, fontWeight: '900', letterSpacing: 1 },
   closeIconBtn: { padding: 4 },
   closeIconText: { fontSize: 18, fontWeight: '900' },
-  modalScroll: { padding: 16, paddingBottom: 30 },
+  modalScrollView: { flex: 1 },
+  modalScroll: { padding: 16, paddingBottom: 40 },
   modalScoreCard: { padding: 16, borderRadius: 12, alignItems: 'center', marginBottom: 16, borderWidth: 1 },
   modalGameSub: { fontSize: 12, fontWeight: '700', marginBottom: 6 },
   modalScoreNumbers: { flexDirection: 'row', alignItems: 'center', gap: 12 },
