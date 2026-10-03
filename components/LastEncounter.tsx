@@ -560,12 +560,12 @@ const styles = StyleSheet.create({
   factText: { fontSize: 11, fontWeight: '500', flex: 1, lineHeight: 16 },
   statsButton: { paddingVertical: 12, borderRadius: 10, alignItems: 'center', marginTop: 10 },
   statsButtonText: { color: '#FFFFFF', fontSize: 13, fontWeight: '900', letterSpacing: 0.5 },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.85)', justifyContent: 'flex-end' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.85)', justifyContent: 'flex-end', paddingBottom: 16 },
   // Fixed pixel height (not a '%' string) plus overflow:'hidden', same as
   // the Reef Know Before You Go modal in index.tsx — this is what lets
   // Android give the inner ScrollView a real bounded height instead of
   // letting stats/scoring plays/3 stars overflow past the modal uncut.
-  modalContainer: { height: SCREEN_HEIGHT * 0.82, borderTopLeftRadius: 20, borderTopRightRadius: 20, borderWidth: 1, overflow: 'hidden', flexDirection: 'column' },
+  modalContainer: { height: SCREEN_HEIGHT * 0.82, borderRadius: 20, borderWidth: 1, overflow: 'hidden', flexDirection: 'column' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1 },
   modalHeaderTitle: { fontSize: 15, fontWeight: '900', letterSpacing: 1 },
   closeIconBtn: { padding: 4 },

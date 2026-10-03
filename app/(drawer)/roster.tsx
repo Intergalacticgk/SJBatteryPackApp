@@ -17,10 +17,13 @@ import { supabase } from '../../supabase';
 
 type PositionFilter = 'ALL' | 'FORWARDS' | 'DEFENSE' | 'GOALIES';
 
-// Home opener for the 2026-27 season. Until this date, individual player
-// stat totals are blanked out in the UI (rather than showing 0s, which read
-// as "played and did nothing") since the regular season hasn't started yet.
-const HOME_OPENER = new Date('2026-10-03T00:00:00-07:00');
+// Home opener for the 2026-27 season. Individual player stat totals stay
+// blanked out in the UI (rather than showing 0s, which read as "played and
+// did nothing") until this specific game's status in `schedule` is FINAL --
+// not just once the calendar date arrives, so stats don't leak in hours
+// before puck drop and still show correctly once this game wraps up, even
+// if it runs past midnight.
+const HOME_OPENER_DATE = '2026-10-03';
 const CURRENT_SEASON = '2026-2027';
 
 interface Player {
@@ -61,9 +64,11 @@ export default function RosterScreen() {
   const [activeTab, setActiveTab] = useState<PositionFilter>('ALL');
   const [failedImages, setFailedImages] = useState<Record<string, boolean>>({});
   const [dataSeason, setDataSeason] = useState<string | null>(null);
+  const [homeOpenerFinal, setHomeOpenerFinal] = useState(false);
 
   useEffect(() => {
     fetchRoster();
+    fetchHomeOpenerStatus();
 
     const channel = supabase
       .channel('public:barracuda_roster_sync')
@@ -72,10 +77,34 @@ export default function RosterScreen() {
       })
       .subscribe();
 
+    const scheduleChannel = supabase
+      .channel('public:barracuda_schedule_sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'schedule' }, () => {
+        fetchHomeOpenerStatus();
+      })
+      .subscribe();
+
     return () => {
       supabase.removeChannel(channel);
+      supabase.removeChannel(scheduleChannel);
     };
   }, []);
+
+  const fetchHomeOpenerStatus = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('schedule')
+        .select('status')
+        .eq('game_date', HOME_OPENER_DATE)
+        .maybeSingle();
+
+      if (!error && data) {
+        setHomeOpenerFinal(data.status === 'FINAL');
+      }
+    } catch (err) {
+      console.warn('Error fetching home opener status:', err);
+    }
+  };
 
   const fetchRoster = async () => {
     try {
@@ -108,6 +137,7 @@ export default function RosterScreen() {
     setRefreshing(true);
     setFailedImages({});
     fetchRoster();
+    fetchHomeOpenerStatus();
   }, []);
 
   const filteredPlayers = useMemo(() => {
@@ -136,7 +166,7 @@ export default function RosterScreen() {
     return { all: players.length, f: fCount, d: dCount, g: gCount };
   }, [players]);
 
-  const isPreseason = Date.now() < HOME_OPENER.getTime();
+  const isPreseason = !homeOpenerFinal;
   const isStaleSeasonData = Boolean(dataSeason) && dataSeason !== CURRENT_SEASON;
 
   const formatGAA = (val: any) => {
@@ -212,7 +242,7 @@ export default function RosterScreen() {
 
           <View style={styles.gpContainer}>
             <Text style={[styles.gpLabel, { color: theme.subText }]}>GP</Text>
-            <Text style={[styles.gpValue, { color: theme.text }]}>{item.gp ?? 0}</Text>
+            <Text style={[styles.gpValue, { color: theme.text }]}>{blankStats ? '–' : (item.gp ?? 0)}</Text>
           </View>
         </View>
 
