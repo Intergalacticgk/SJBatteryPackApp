@@ -99,47 +99,62 @@ Deno.serve(async (_req) => {
       }
     }
 
-    // --- Events & Tabling Alerts: only for HOME games with a tabling event scheduled today ---
+    // --- Events & Tabling Alerts + Group Photo reminder: HOME games only ---
     if (todayGame.home_away === 'HOME') {
       const puckDropMinutes = parseGameTime(todayGame.game_time);
       if (puckDropMinutes != null) {
-        const { data: tablingEvents } = await supabase
+        const { data: todaysEvents } = await supabase
           .from('supporter_events')
-          .select('id, location, event_time')
-          .eq('event_date', todayStr)
-          .ilike('category', '%tabling%')
-          .limit(1);
-        const tablingEvent = (tablingEvents || [])[0];
+          .select('id, category, location, event_time')
+          .eq('event_date', todayStr);
 
-        if (tablingEvent) {
-          const location = tablingEvent.location || 'outside Section 108';
+        const hasTablingEvent = (todaysEvents || []).some((e: any) =>
+          (e.category || '').toLowerCase().includes('tabling')
+        );
+        const has1stIntermissionGroupPhoto = (todaysEvents || []).some((e: any) =>
+          (e.category || '').toLowerCase() === 'group photos' &&
+          (e.event_time || '').toLowerCase() === '1st intermission'
+        );
 
-          // +10 min after puck drop (1st intermission is coming up)
-          if (nowMinutes >= puckDropMinutes + 10 && nowMinutes < puckDropMinutes + 15) {
+        // +10 min after puck drop (1st intermission is coming up)
+        if (nowMinutes >= puckDropMinutes + 10 && nowMinutes < puckDropMinutes + 15) {
+          if (hasTablingEvent) {
             if (await claimOnce(todayGame.game_id, 'tabling_10')) {
               results.tabling10 = await sendToAudience(
                 'notify_events',
-                '🦈 Booster Table is OPEN!',
-                `Swing by ${location} during the 1st intermission for free stickers, pins, and friendship bracelets!`,
+                '🦈 SJ Battery Pack Table is OPEN!',
+                "Swing by The Cove during the 1st intermission on the concourse for free stickers, pins, and friendship bracelets!",
                 { screen: '/(drawer)/fanzone' }
               );
             } else {
               results.tabling10 = 'already sent or no claim';
             }
           }
-
-          // +30 min after puck drop (2nd intermission window)
-          if (nowMinutes >= puckDropMinutes + 30 && nowMinutes < puckDropMinutes + 35) {
-            if (await claimOnce(todayGame.game_id, 'tabling_30')) {
-              results.tabling30 = await sendToAudience(
+          if (has1stIntermissionGroupPhoto) {
+            if (await claimOnce(todayGame.game_id, 'group_photo_10')) {
+              results.groupPhoto10 = await sendToAudience(
                 'notify_events',
-                '🦈 Still at the Booster Table!',
-                `We're still set up at ${location} — come say hi during the 2nd intermission before it wraps up.`,
+                '📸 1st Intermission Group Photo!',
+                "Grab your friends and meet us outside The Cove / Section 108 — the photo happens with 10 minutes left in the intermission, so get there early!",
                 { screen: '/(drawer)/fanzone' }
               );
             } else {
-              results.tabling30 = 'already sent or no claim';
+              results.groupPhoto10 = 'already sent or no claim';
             }
+          }
+        }
+
+        // +30 min after puck drop (2nd intermission window)
+        if (hasTablingEvent && nowMinutes >= puckDropMinutes + 30 && nowMinutes < puckDropMinutes + 35) {
+          if (await claimOnce(todayGame.game_id, 'tabling_30')) {
+            results.tabling30 = await sendToAudience(
+              'notify_events',
+              '🦈 Still at the SJ Battery Pack Table!',
+              "We're still set up near The Cove!!  Come say hi during the 2nd intermission before we wrap up.",
+              { screen: '/(drawer)/fanzone' }
+            );
+          } else {
+            results.tabling30 = 'already sent or no claim';
           }
         }
       }
