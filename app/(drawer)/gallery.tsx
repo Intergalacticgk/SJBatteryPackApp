@@ -32,6 +32,7 @@ interface GalleryPhoto {
   id: string;
   user_id: string;
   username: string;
+  avatar_url?: string;
   image_url: string;
   caption?: string;
   likes_count: number;
@@ -125,6 +126,24 @@ export default function GalleryScreen() {
       }
 
       if (Array.isArray(data)) {
+        // Always show each uploader's CURRENT username/avatar (from profiles),
+        // not whatever was snapshotted into fan_gallery.username at upload
+        // time — otherwise a renamed/updated profile goes stale on old posts.
+        const uploaderIds = Array.from(new Set(data.map((p) => p.user_id).filter(Boolean)));
+        let profileMap: Record<string, { username?: string; avatar_url?: string }> = {};
+        if (uploaderIds.length > 0) {
+          const { data: profilesData } = await supabase
+            .from('profiles')
+            .select('id, username, avatar_url')
+            .in('id', uploaderIds);
+          profileMap = Object.fromEntries((profilesData || []).map((p: any) => [p.id, p]));
+        }
+        const withLiveProfiles = data.map((p) => ({
+          ...p,
+          username: profileMap[p.user_id]?.username || p.username,
+          avatar_url: profileMap[p.user_id]?.avatar_url || undefined,
+        }));
+
         const currentUid = userId || session?.user?.id;
         if (currentUid) {
           const { data: userLikes } = await supabase
@@ -133,9 +152,9 @@ export default function GalleryScreen() {
             .eq('user_id', currentUid);
 
           const likedIds = new Set(userLikes?.map((l) => l.photo_id));
-          setPhotos(data.map((p) => ({ ...p, hasLiked: likedIds.has(p.id) })));
+          setPhotos(withLiveProfiles.map((p) => ({ ...p, hasLiked: likedIds.has(p.id) })));
         } else {
-          setPhotos(data);
+          setPhotos(withLiveProfiles);
         }
       }
     } catch (err) {
@@ -224,8 +243,13 @@ export default function GalleryScreen() {
         .getPublicUrl(fileName);
 
       const monthYear = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+      const { data: uploaderProfile } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('id', session.user.id)
+        .single();
       const userHandle =
-        session.user.user_metadata?.username || session.user.email?.split('@')[0] || 'Supporter108';
+        uploaderProfile?.username || session.user.email?.split('@')[0] || 'Supporter108';
 
       await supabase.from('fan_gallery').insert([
         {
@@ -361,7 +385,24 @@ export default function GalleryScreen() {
       .eq('photo_id', photo.id)
       .order('created_at', { ascending: true });
 
-    setComments(data || []);
+    const commentRows = data || [];
+    const commenterIds = Array.from(new Set(commentRows.map((c: any) => c.user_id).filter(Boolean)));
+    let commenterProfiles: Record<string, { username?: string; avatar_url?: string }> = {};
+    if (commenterIds.length > 0) {
+      const { data: profilesData } = await supabase
+        .from('profiles')
+        .select('id, username, avatar_url')
+        .in('id', commenterIds);
+      commenterProfiles = Object.fromEntries((profilesData || []).map((p: any) => [p.id, p]));
+    }
+
+    setComments(
+      commentRows.map((c: any) => ({
+        ...c,
+        username: commenterProfiles[c.user_id]?.username || c.username,
+        avatar_url: commenterProfiles[c.user_id]?.avatar_url || undefined,
+      }))
+    );
     setLoadingComments(false);
   };
 
@@ -373,9 +414,14 @@ export default function GalleryScreen() {
     if (!newCommentText.trim() || !activeCommentPhoto) return;
 
     setPostingComment(true);
+    const { data: commenterProfile } = await supabase
+      .from('profiles')
+      .select('username, avatar_url')
+      .eq('id', session.user.id)
+      .single();
     const userHandle =
-      session.user.user_metadata?.username || session.user.email?.split('@')[0] || 'Supporter108';
-    const avatar = session.user.user_metadata?.avatar_url || null;
+      commenterProfile?.username || session.user.email?.split('@')[0] || 'Supporter108';
+    const avatar = commenterProfile?.avatar_url || null;
 
     try {
       const { data, error } = await supabase
@@ -456,9 +502,13 @@ export default function GalleryScreen() {
           renderItem={({ item }) => (
             <View style={[styles.timelineCard, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
               <View style={styles.cardHeader}>
-                <View style={[styles.avatarBadge, { backgroundColor: theme.accentOrange }]}>
-                  <Text style={styles.avatarText}>{item.username.substring(0, 2).toUpperCase()}</Text>
-                </View>
+                {item.avatar_url ? (
+                  <Image source={{ uri: item.avatar_url }} style={styles.avatarPhoto} />
+                ) : (
+                  <View style={[styles.avatarBadge, { backgroundColor: theme.accentOrange }]}>
+                    <Text style={styles.avatarText}>{item.username.substring(0, 2).toUpperCase()}</Text>
+                  </View>
+                )}
                 <View style={{ flex: 1, marginLeft: 10 }}>
                   <Text style={[styles.usernameText, { color: theme.text }]}>{item.username}</Text>
                   <Text style={[styles.dateText, { color: theme.subText }]}>
@@ -742,6 +792,7 @@ const styles = StyleSheet.create({
   timelinePadding: { padding: 14, paddingBottom: 80 },
   timelineCard: { borderRadius: 14, borderWidth: 1, marginBottom: 14, overflow: 'hidden' },
   cardHeader: { flexDirection: 'row', alignItems: 'center', padding: 12 },
+  avatarPhoto: { width: 34, height: 34, borderRadius: 17 },
   avatarBadge: { width: 34, height: 34, borderRadius: 17, justifyContent: 'center', alignItems: 'center' },
   avatarText: { color: '#FFFFFF', fontSize: 12, fontWeight: '900' },
   usernameText: { fontSize: 13, fontWeight: '800' },

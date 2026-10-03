@@ -12,11 +12,15 @@ import {
   Switch,
   Modal,
   FlatList,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Crypto from 'expo-crypto';
+import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
+import { decode } from 'base64-arraybuffer';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import { supabase } from '../../supabase';
 import * as Notifications from 'expo-notifications';
@@ -99,6 +103,8 @@ export default function AccountScreen() {
   const [gamesExpanded, setGamesExpanded] = useState(false);
 
   const [username, setUsername] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [phoneInput, setPhoneInput] = useState('');
@@ -167,6 +173,7 @@ export default function AccountScreen() {
     if (data && !error) {
       const activeUser = data.username || (data.email ? data.email.split('@')[0] : 'Supporter108');
       setUsername(activeUser);
+      setAvatarUrl(data.avatar_url || null);
       setFirstName(data.first_name || '');
       setLastName(data.last_name || '');
       setPhoneInput(data.phone || user.phone || '');
@@ -232,6 +239,61 @@ export default function AccountScreen() {
       console.warn('Error retrieving high scores:', e);
     } finally {
       setLoadingArcadeScores(false);
+    }
+  };
+
+  const handleUploadAvatar = async () => {
+    if (!session?.user) return;
+
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Denied', 'Camera roll access is needed to choose a profile photo.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (result.canceled || !result.assets[0]) return;
+
+    try {
+      setUploadingAvatar(true);
+      const asset = result.assets[0];
+      const ext = asset.uri.split('.').pop() || 'jpg';
+      // Deterministic name per user (not Date.now()-suffixed like gallery/chat
+      // uploads) so re-uploading overwrites the same file via upsert instead
+      // of piling up orphaned avatar images per user.
+      const fileName = `${session.user.id}.${ext}`;
+
+      const base64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.Base64 });
+      const arrayBuffer = decode(base64);
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(fileName, arrayBuffer, { contentType: `image/${ext}`, upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: publicUrlData } = supabase.storage.from('avatars').getPublicUrl(fileName);
+      // Cache-bust so the new photo shows immediately instead of a CDN-cached
+      // copy of the old one at the same URL.
+      const freshUrl = `${publicUrlData.publicUrl}?updated=${Date.now()}`;
+
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .upsert({ id: session.user.id, avatar_url: freshUrl, updated_at: new Date().toISOString() });
+
+      if (profileError) throw profileError;
+
+      setAvatarUrl(freshUrl);
+    } catch (err: any) {
+      Alert.alert('Upload Error', err.message || 'Could not upload your profile photo.');
+    } finally {
+      setUploadingAvatar(false);
     }
   };
 
@@ -490,6 +552,32 @@ export default function AccountScreen() {
 
             {profileExpanded && (
               <View style={[styles.accordionContent, { backgroundColor: theme.cardBg, borderColor: theme.borderColor }]}>
+                <View style={styles.avatarRow}>
+                  {avatarUrl ? (
+                    <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
+                  ) : (
+                    <View style={[styles.avatarPlaceholder, { backgroundColor: theme.accentOrange }]}>
+                      <Text style={styles.avatarPlaceholderText}>
+                        {(username || 'SU').substring(0, 2).toUpperCase()}
+                      </Text>
+                    </View>
+                  )}
+                  <TouchableOpacity
+                    style={[styles.avatarButton, { borderColor: theme.accentGold }]}
+                    onPress={handleUploadAvatar}
+                    disabled={uploadingAvatar}
+                    activeOpacity={0.8}
+                  >
+                    {uploadingAvatar ? (
+                      <ActivityIndicator size="small" color={theme.accentGold} />
+                    ) : (
+                      <Text style={[styles.avatarButtonText, { color: theme.accentGold }]}>
+                        {avatarUrl ? 'Change Photo' : 'Add Profile Photo'}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+
                 <Text style={[styles.label, { color: theme.accentGold }]}>Chat Handle / Username</Text>
                 <TextInput
                   style={[styles.input, { backgroundColor: theme.subCardBg, color: theme.text, borderColor: theme.accentGold }]}
@@ -958,6 +1046,12 @@ const styles = StyleSheet.create({
   dropdownBtnText: { fontSize: 13, fontWeight: '700' },
   switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 },
   switchLabel: { fontSize: 13, fontWeight: '700', flex: 1, marginRight: 10 },
+  avatarRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
+  avatarImage: { width: 64, height: 64, borderRadius: 32, marginRight: 14 },
+  avatarPlaceholder: { width: 64, height: 64, borderRadius: 32, justifyContent: 'center', alignItems: 'center', marginRight: 14 },
+  avatarPlaceholderText: { color: '#FFFFFF', fontSize: 20, fontWeight: '900' },
+  avatarButton: { borderWidth: 1.5, borderRadius: 8, paddingVertical: 8, paddingHorizontal: 14 },
+  avatarButtonText: { fontSize: 13, fontWeight: '700' },
   label: { fontSize: 12, fontWeight: '700', marginBottom: 6 },
   input: { padding: 12, borderRadius: 10, borderWidth: 1, fontSize: 14, fontWeight: '700', marginBottom: 12 },
   saveProfileBtn: { padding: 14, borderRadius: 12, alignItems: 'center', marginTop: 14, marginBottom: 10 },

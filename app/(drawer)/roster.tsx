@@ -336,15 +336,6 @@ export default function RosterScreen() {
         <Text style={[styles.bannerSubtitle, { color: theme.text }]}>
           • Official AHL Feed •
         </Text>
-        {isStaleSeasonData ? (
-          <Text style={[styles.bannerNote, { color: theme.accentOrange }]}>
-            Showing {dataSeason} season stats — 2026–27 stats begin with our 10/3 home opener
-          </Text>
-        ) : isPreseason ? (
-          <Text style={[styles.bannerNote, { color: theme.subText }]}>
-            2026–27 stats begin with our home opener on 10/3/2026
-          </Text>
-        ) : null}
       </View>
 
       {loading ? (
