@@ -23,6 +23,7 @@ import { Audio } from 'expo-av';
 import { CircleRenderer, WallRenderer } from '../../game-engines/components/Physics';
 import { supabase } from '../../supabase';
 import { validateInitials } from '../../utils/initialsFilter';
+import { submitArcadeScore, fetchArcadeLeaderboard } from '../../services/arcadeScores';
 
 const { width, height } = Dimensions.get('window');
 const RINK_WIDTH = width - 16;
@@ -606,22 +607,8 @@ export default function PuckDropScreen() {
   const worldEntities = useMemo(() => setupWorld(), [gameKey]);
 
   const fetchLeaderboard = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('arcade_high_scores')
-        .select('*')
-        .eq('game_type', 'PUCK_DROP')
-        .order('score', { ascending: false })
-        .limit(10);
-
-      if (!error && data && data.length > 0) {
-        setLeaderboard(data);
-      } else {
-        setLeaderboard([]);
-      }
-    } catch {
-      setLeaderboard([]);
-    }
+    const data = await fetchArcadeLeaderboard('PUCK_DROP', { limit: 10 });
+    setLeaderboard(data);
   };
 
   const handleSaveScore = async () => {
@@ -639,39 +626,14 @@ export default function PuckDropScreen() {
 
     try {
       setSavingScore(true);
-      const { data: authData } = await supabase.auth.getSession();
-      const currentUserId = authData?.session?.user?.id || null;
 
-      const { error } = await supabase
-        .from('arcade_high_scores')
-        .insert([{
-          user_id: currentUserId,
-          initials: cleanInitials,
-          score: playerScore,
-          team_played: opponent?.abbrev || 'OPP',
-          game_type: 'PUCK_DROP',
-        }]);
-
-      if (error) throw error;
-
-      if (currentUserId) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('puckdrop_high_score')
-          .eq('id', currentUserId)
-          .single();
-
-        const currentBest = profile?.puckdrop_high_score || 0;
-        if (playerScore > currentBest) {
-          await supabase
-            .from('profiles')
-            .update({
-              puckdrop_high_score: playerScore,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', currentUserId);
-        }
-      }
+      await submitArcadeScore({
+        gameType: 'PUCK_DROP',
+        initials: cleanInitials,
+        score: playerScore,
+        teamPlayed: opponent?.abbrev || 'OPP',
+        profileHighScoreColumn: 'puckdrop_high_score',
+      });
 
       Alert.alert("Score Saved!", "Your puck drop total has been saved & synced to your account.");
       await fetchLeaderboard();

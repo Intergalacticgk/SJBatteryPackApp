@@ -20,6 +20,7 @@ import { useRouter } from 'expo-router';
 import { Audio } from 'expo-av';
 import { supabase } from '../../supabase';
 import { validateInitials } from '../../utils/initialsFilter';
+import { submitArcadeScore, fetchArcadeLeaderboard } from '../../services/arcadeScores';
 
 const { width, height } = Dimensions.get('window');
 const LANE_WIDTH = (width - 24) / 3;
@@ -170,20 +171,8 @@ export default function ZamboniDashScreen() {
   };
 
   const fetchLeaderboard = async () => {
-    try {
-      const { data } = await supabase
-        .from('arcade_high_scores')
-        .select('*')
-        .eq('game_type', 'ZAMBONI_DASH')
-        .order('score', { ascending: false })
-        .limit(10);
-
-      if (data && data.length > 0) {
-        setLeaderboard(data);
-      }
-    } catch {
-      setLeaderboard([]);
-    }
+    const data = await fetchArcadeLeaderboard('ZAMBONI_DASH', { limit: 10 });
+    if (data.length > 0) setLeaderboard(data);
   };
 
   const getCurrentSpeed = () => {
@@ -425,37 +414,14 @@ export default function ZamboniDashScreen() {
 
     try {
       setSaving(true);
-      const { data: authData } = await supabase.auth.getSession();
-      const currentUserId = authData?.session?.user?.id || null;
 
-      await supabase.from('arcade_high_scores').insert([
-        {
-          user_id: currentUserId,
-          initials: clean,
-          score: calculatedScore,
-          team_played: selectedMode === 'TIMED' ? 'ZAM-TIME' : 'ZAM-END',
-          game_type: 'ZAMBONI_DASH',
-        },
-      ]);
-
-      if (currentUserId) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('zambonidash_high_score')
-          .eq('id', currentUserId)
-          .single();
-
-        const currentBest = profile?.zambonidash_high_score || 0;
-        if (calculatedScore > currentBest) {
-          await supabase
-            .from('profiles')
-            .update({
-              zambonidash_high_score: calculatedScore,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', currentUserId);
-        }
-      }
+      await submitArcadeScore({
+        gameType: 'ZAMBONI_DASH',
+        initials: clean,
+        score: calculatedScore,
+        teamPlayed: selectedMode === 'TIMED' ? 'ZAM-TIME' : 'ZAM-END',
+        profileHighScoreColumn: 'zambonidash_high_score',
+      });
 
       Alert.alert('Score Submitted!', 'Your dash has been logged on the leaderboard & saved to your account.');
       await fetchLeaderboard();

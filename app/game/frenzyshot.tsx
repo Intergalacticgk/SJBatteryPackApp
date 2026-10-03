@@ -20,6 +20,7 @@ import { useRouter } from 'expo-router';
 import { Audio } from 'expo-av';
 import { supabase } from '../../supabase';
 import { validateInitials } from '../../utils/initialsFilter';
+import { submitArcadeScore, fetchArcadeLeaderboard } from '../../services/arcadeScores';
 
 const { width, height } = Dimensions.get('window');
 
@@ -243,33 +244,8 @@ export default function PenaltyShotScreen() {
   }, [arrowAnim]);
 
   const fetchLeaderboard = async () => {
-    try {
-      const { data } = await supabase
-        .from('arcade_high_scores')
-        .select('*')
-        .eq('game_type', 'FRENZY_SHOT')
-        .order('score', { ascending: false })
-        .limit(30);
-
-      if (data && data.length > 0) {
-        // Keep only the highest score per unique initial
-        const unique = [];
-        const seen = new Set();
-        for (const item of data) {
-          const key = (item.initials || '').toUpperCase();
-          if (!seen.has(key)) {
-            seen.add(key);
-            unique.push(item);
-          }
-          if (unique.length === 10) break;
-        }
-        setLeaderboard(unique);
-      } else {
-        setLeaderboard([]);
-      }
-    } catch {
-      setLeaderboard([]);
-    }
+    const data = await fetchArcadeLeaderboard('FRENZY_SHOT', { limit: 10, dedupeByInitials: true });
+    setLeaderboard(data);
   };
 
   const triggerPostRicochet = (impactX: number, targetY: number) => {
@@ -396,37 +372,14 @@ export default function PenaltyShotScreen() {
 
     try {
       setSaving(true);
-      const { data: authData } = await supabase.auth.getSession();
-      const currentUserId = authData?.session?.user?.id || null;
 
-      await supabase.from('arcade_high_scores').insert([
-        {
-          user_id: currentUserId,
-          initials: clean,
-          score,
-          team_played: `FRENZY-${difficulty}`,
-          game_type: 'FRENZY_SHOT',
-        },
-      ]);
-
-      if (currentUserId) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('frenzyshot_high_score')
-          .eq('id', currentUserId)
-          .single();
-
-        const currentBest = profile?.frenzyshot_high_score || 0;
-        if (score > currentBest) {
-          await supabase
-            .from('profiles')
-            .update({
-              frenzyshot_high_score: score,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', currentUserId);
-        }
-      }
+      await submitArcadeScore({
+        gameType: 'FRENZY_SHOT',
+        initials: clean,
+        score,
+        teamPlayed: `FRENZY-${difficulty}`,
+        profileHighScoreColumn: 'frenzyshot_high_score',
+      });
 
       Alert.alert('Saved!', 'Your score is on the leaderboard & synced to your account.');
       await fetchLeaderboard();
