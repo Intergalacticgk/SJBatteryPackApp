@@ -205,12 +205,8 @@ export default function GalleryScreen() {
       return;
     }
 
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission Denied', 'Camera roll access is needed to select photos.');
-      return;
-    }
-
+    // Android 13+/iOS: launchImageLibraryAsync uses the system photo picker,
+    // which doesn't require a broad media-library permission grant.
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: false,

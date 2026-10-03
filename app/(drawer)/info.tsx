@@ -245,12 +245,8 @@ export default function AccountScreen() {
   const handleUploadAvatar = async () => {
     if (!session?.user) return;
 
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission Denied', 'Camera roll access is needed to choose a profile photo.');
-      return;
-    }
-
+    // Android 13+/iOS: launchImageLibraryAsync uses the system photo picker,
+    // which doesn't require a broad media-library permission grant.
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,

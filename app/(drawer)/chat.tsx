@@ -268,11 +268,8 @@ export default function ChatScreen() {
       {
         text: 'Photo Library',
         onPress: async () => {
-          const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-          if (status !== 'granted') {
-            Alert.alert('Permission Denied', 'Media library access is required.');
-            return;
-          }
+          // Android 13+/iOS: launchImageLibraryAsync uses the system photo picker,
+          // which doesn't require a broad media-library permission grant.
           const result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ImagePicker.MediaTypeOptions.Images,
             allowsEditing: true,
