@@ -19,6 +19,7 @@ import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { Audio } from 'expo-av';
 import { supabase } from '../../supabase';
+import { validateInitials } from '../../utils/initialsFilter';
 
 const { width, height } = Dimensions.get('window');
 const LANE_WIDTH = (width - 24) / 3;
@@ -35,18 +36,6 @@ const HORN_AUDIO = require('../../assets/audio/goal-horn.mp3');
 
 type GameMode = 'TIMED' | 'ENDLESS';
 
-const BANNED_WORDS = [
-  'FUCK', 'SHIT', 'DICK', 'COCK', 'PUSS', 'CUNT', 'ASS', 'BITCH',
-  'SLUT', 'HELL', 'DAMN', 'PISS', 'TITS', 'CRAP', 'FAG', 'TWAT', 'WANK', 'JISM'
-];
-
-const validateInitials = (input: string): boolean => {
-  const clean = input.toUpperCase().replace(/[^A-Z0-9]/g, '');
-  for (const word of BANNED_WORDS) {
-    if (clean.includes(word)) return false;
-  }
-  return true;
-};
 
 const SEAMLESS_TILE_HEIGHT = 400;
 

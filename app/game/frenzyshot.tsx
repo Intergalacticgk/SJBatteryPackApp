@@ -19,6 +19,7 @@ import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { Audio } from 'expo-av';
 import { supabase } from '../../supabase';
+import { validateInitials } from '../../utils/initialsFilter';
 
 const { width, height } = Dimensions.get('window');
 
@@ -42,18 +43,6 @@ const DIFFICULTY_CONFIG = {
   NHL: { label: 'NHL (All-Star)', goalieDuration: 250, trackingMultiplier: 0.95, saveThreshold: 54, ptsMultiplier: 1.5 },
 };
 
-const BANNED_WORDS = [
-  'FUCK', 'SHIT', 'DICK', 'COCK', 'PUSS', 'CUNT', 'ASS', 'BITCH',
-  'SLUT', 'HELL', 'DAMN', 'PISS', 'TITS', 'CRAP', 'FAG', 'TWAT', 'WANK', 'JISM'
-];
-
-const validateInitials = (input: string): boolean => {
-  const clean = input.toUpperCase().replace(/[^A-Z0-9]/g, '');
-  for (const word of BANNED_WORDS) {
-    if (clean.includes(word)) return false;
-  }
-  return true;
-};
 
 export default function PenaltyShotScreen() {
   const router = useRouter();

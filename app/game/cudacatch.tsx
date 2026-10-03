@@ -3,20 +3,12 @@ import { StyleSheet, Text, View, Dimensions, TouchableOpacity, StatusBar, Animat
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { supabase } from '../../supabase';
+import { validateInitials } from '../../utils/initialsFilter';
 
 const { width, height } = Dimensions.get('window');
 
 const BUCKET_WIDTH = 80;
 
-const BANNED_WORDS = ['FUCK', 'SHIT', 'DICK', 'COCK', 'PUSS', 'CUNT', 'ASS', 'BITCH', 'SLUT', 'HELL', 'DAMN', 'PISS', 'TITS', 'CRAP', 'FAG', 'TWAT', 'WANK', 'JISM'];
-
-const validateInitials = (input: string): boolean => {
-  const clean = input.toUpperCase().replace(/[^A-Z0-9]/g, '');
-  for (const word of BANNED_WORDS) {
-    if (clean.includes(word)) return false;
-  }
-  return true;
-};
 
 export default function CudaCatchScreen() {
   const router = useRouter();

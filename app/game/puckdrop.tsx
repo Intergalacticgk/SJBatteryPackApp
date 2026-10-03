@@ -22,6 +22,7 @@ import { useRouter } from 'expo-router';
 import { Audio } from 'expo-av';
 import { CircleRenderer, WallRenderer } from '../../game-engines/components/Physics';
 import { supabase } from '../../supabase';
+import { validateInitials } from '../../utils/initialsFilter';
 
 const { width, height } = Dimensions.get('window');
 const RINK_WIDTH = width - 16;
@@ -38,26 +39,6 @@ const BGM_AUDIO = require('../../assets/audio/frenzyshot-bgm.mp3');
 const GOAL_AUDIO = require('../../assets/audio/goal-cheer.mp3');
 const HORN_AUDIO = require('../../assets/audio/goal-horn.mp3');
 
-const BANNED_WORDS = [
-  'FUCK', 'SHIT', 'DICK', 'COCK', 'PUSS', 'CUNT', 'ASS', 'BITCH',
-  'SLUT', 'HELL', 'DAMN', 'PISS', 'TITS', 'CRAP', 'FAG', 'TWAT', 'WANK', 'JISM'
-];
-
-const validateInitials = (input: string): boolean => {
-  const clean = input
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, '')
-    .replace(/1/g, 'I')
-    .replace(/3/g, 'E')
-    .replace(/4/g, 'A')
-    .replace(/0/g, 'O')
-    .replace(/5/g, 'S');
-
-  for (const word of BANNED_WORDS) {
-    if (clean.includes(word)) return false;
-  }
-  return true;
-};
 
 const PACIFIC_TEAMS = [
   { name: 'Abbotsford Canucks', abbrev: 'ABB', color: '#00205B' },
