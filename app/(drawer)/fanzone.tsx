@@ -9,7 +9,6 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
-  Dimensions,
   Platform,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,10 +17,6 @@ import { Image } from 'expo-image';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useAppTheme } from '../../context/ThemeContext';
 import { supabase } from '../../supabase';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const GRID_COLUMNS = 3;
-const GRID_ITEM_SIZE = (SCREEN_WIDTH - 40) / GRID_COLUMNS;
 
 type FanZoneTab = 'CHANTS' | 'GALLERY' | 'CHAT' | 'GAMES';
 
