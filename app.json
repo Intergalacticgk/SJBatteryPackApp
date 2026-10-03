@@ -3,12 +3,12 @@
     "name": "SJ Battery Pack",
     "slug": "SJBatteryPackApp",
     "scheme": "sjbatterypack",
-    "version": "2.1.18",
+    "version": "2.1.20",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "userInterfaceStyle": "dark",
     "newArchEnabled": false,
-    "runtimeVersion": "2.1.18",
+    "runtimeVersion": "2.1.20",
     "updates": {
       "url": "https://u.expo.dev/d4824861-c576-4382-91d9-c7ef0f26cf5f",
       "enabled": true,
@@ -23,7 +23,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.sjbatterypack.myapp",
-      "buildNumber": "2.1.18",
+      "buildNumber": "2.1.20",
       "usesAppleSignIn": true,
       "icon": "./assets/images/icon.png",
       "splash": {
@@ -47,7 +47,7 @@
     },
     "android": {
       "package": "com.sjbatterypack.myapp",
-      "versionCode": 64,
+      "versionCode": 66,
       "softwareKeyboardLayoutMode": "resize",
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
@@ -108,13 +108,14 @@
             "compileSdkVersion": 36,
             "targetSdkVersion": 36,
             "buildToolsVersion": "36.0.0",
-            "kotlinVersion": "1.9.24"
+            "ndkVersion": "27.0.12077973"
           },
           "ios": {
             "deploymentTarget": "16.4"
           }
         }
-      ]
+      ],
+      "./plugins/withDisableLintVital"
     ],
     "experiments": {
       "typedRoutes": true

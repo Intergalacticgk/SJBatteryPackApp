@@ -17,6 +17,12 @@ import { supabase } from '../../supabase';
 
 type PositionFilter = 'ALL' | 'FORWARDS' | 'DEFENSE' | 'GOALIES';
 
+// Home opener for the 2026-27 season. Until this date, individual player
+// stat totals are blanked out in the UI (rather than showing 0s, which read
+// as "played and did nothing") since the regular season hasn't started yet.
+const HOME_OPENER = new Date('2026-10-03T00:00:00-07:00');
+const CURRENT_SEASON = '2026-2027';
+
 interface Player {
   id: string;
   jersey_number: string;
@@ -54,6 +60,7 @@ export default function RosterScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<PositionFilter>('ALL');
   const [failedImages, setFailedImages] = useState<Record<string, boolean>>({});
+  const [dataSeason, setDataSeason] = useState<string | null>(null);
 
   useEffect(() => {
     fetchRoster();
@@ -88,6 +95,7 @@ export default function RosterScreen() {
       }
 
       setPlayers(data || []);
+      setDataSeason(data && data.length > 0 ? (data[0].season || null) : null);
     } catch (err) {
       console.warn('Error fetching roster:', err);
     } finally {
@@ -128,6 +136,9 @@ export default function RosterScreen() {
     return { all: players.length, f: fCount, d: dCount, g: gCount };
   }, [players]);
 
+  const isPreseason = Date.now() < HOME_OPENER.getTime();
+  const isStaleSeasonData = Boolean(dataSeason) && dataSeason !== CURRENT_SEASON;
+
   const formatGAA = (val: any) => {
     if (val === undefined || val === null || val === '') return '0.00';
     const num = parseFloat(String(val));
@@ -144,9 +155,15 @@ export default function RosterScreen() {
 
   const renderPlayerCard = ({ item }: { item: Player }) => {
     const isGoalie = (item.position || '').toUpperCase().includes('G');
-    const headshotUri =
-      item.image_url?.trim() ||
-      (item.nhl_id ? `https://assets.nhle.com/mugs/nhl/latest/${item.nhl_id}.png` : null);
+    // Blank real numbers until the season actually starts, so 0s don't read
+    // as "played and did nothing." Doesn't apply when we're showing labeled
+    // prior-season data (isStaleSeasonData), since those are real totals.
+    const blankStats = isPreseason && !isStaleSeasonData;
+    // Only trust a photo URL the sync actually verified (HockeyTech's own
+    // CDN, keyed by their live player_id). No client-side guessing from
+    // nhl_id here anymore — that's what showed the wrong photo for players
+    // like Luca Cagnoni.
+    const headshotUri = item.image_url?.trim() || null;
 
     const hasImage = Boolean(headshotUri) && !failedImages[item.id];
 
@@ -203,34 +220,34 @@ export default function RosterScreen() {
           <View style={[styles.statRow, { borderTopColor: theme.borderColor }]}>
             <View style={styles.statBox}>
               <Text style={[styles.statBoxLabel, { color: theme.subText }]}>WINS</Text>
-              <Text style={[styles.statBoxValue, { color: '#00E5FF' }]}>{item.wins ?? 0}</Text>
+              <Text style={[styles.statBoxValue, { color: '#00E5FF' }]}>{blankStats ? '–' : (item.wins ?? 0)}</Text>
             </View>
             <View style={styles.statBox}>
               <Text style={[styles.statBoxLabel, { color: theme.subText }]}>LOSS</Text>
-              <Text style={[styles.statBoxValue, { color: '#FFB800' }]}>{item.losses ?? 0}</Text>
+              <Text style={[styles.statBoxValue, { color: '#FFB800' }]}>{blankStats ? '–' : (item.losses ?? 0)}</Text>
             </View>
             <View style={styles.statBox}>
               <Text style={[styles.statBoxLabel, { color: theme.subText }]}>GAA</Text>
-              <Text style={[styles.statBoxValue, { color: theme.accentGold }]}>{formatGAA(item.gaa)}</Text>
+              <Text style={[styles.statBoxValue, { color: theme.accentGold }]}>{blankStats ? '–' : formatGAA(item.gaa)}</Text>
             </View>
             <View style={styles.statBox}>
               <Text style={[styles.statBoxLabel, { color: theme.subText }]}>SV%</Text>
-              <Text style={[styles.statBoxValue, { color: '#00FFCC' }]}>{formatSVPct(item.sv_pct)}</Text>
+              <Text style={[styles.statBoxValue, { color: '#00FFCC' }]}>{blankStats ? '–' : formatSVPct(item.sv_pct)}</Text>
             </View>
           </View>
         ) : (
           <View style={[styles.statRow, { borderTopColor: theme.borderColor }]}>
             <View style={styles.statBox}>
               <Text style={[styles.statBoxLabel, { color: theme.subText }]}>GOALS</Text>
-              <Text style={[styles.statBoxValue, { color: '#00E5FF' }]}>{item.goals ?? 0}</Text>
+              <Text style={[styles.statBoxValue, { color: '#00E5FF' }]}>{blankStats ? '–' : (item.goals ?? 0)}</Text>
             </View>
             <View style={styles.statBox}>
               <Text style={[styles.statBoxLabel, { color: theme.subText }]}>ASSISTS</Text>
-              <Text style={[styles.statBoxValue, { color: '#FFB800' }]}>{item.assists ?? 0}</Text>
+              <Text style={[styles.statBoxValue, { color: '#FFB800' }]}>{blankStats ? '–' : (item.assists ?? 0)}</Text>
             </View>
             <View style={styles.statBox}>
               <Text style={[styles.statBoxLabel, { color: theme.subText }]}>POINTS</Text>
-              <Text style={[styles.statBoxValue, { color: theme.accentGold }]}>{item.points ?? 0}</Text>
+              <Text style={[styles.statBoxValue, { color: theme.accentGold }]}>{blankStats ? '–' : (item.points ?? 0)}</Text>
             </View>
             <View style={styles.statBox}>
               <Text style={[styles.statBoxLabel, { color: theme.subText }]}>+/-</Text>
@@ -247,7 +264,7 @@ export default function RosterScreen() {
                   },
                 ]}
               >
-                {(item.plus_minus || 0) > 0 ? `+${item.plus_minus}` : item.plus_minus ?? 0}
+                {blankStats ? '–' : (item.plus_minus || 0) > 0 ? `+${item.plus_minus}` : item.plus_minus ?? 0}
               </Text>
             </View>
           </View>
@@ -319,6 +336,15 @@ export default function RosterScreen() {
         <Text style={[styles.bannerSubtitle, { color: theme.text }]}>
           • Official AHL Feed •
         </Text>
+        {isStaleSeasonData ? (
+          <Text style={[styles.bannerNote, { color: theme.accentOrange }]}>
+            Showing {dataSeason} season stats — 2026–27 stats begin with our 10/3 home opener
+          </Text>
+        ) : isPreseason ? (
+          <Text style={[styles.bannerNote, { color: theme.subText }]}>
+            2026–27 stats begin with our home opener on 10/3/2026
+          </Text>
+        ) : null}
       </View>
 
       {loading ? (
@@ -386,6 +412,12 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '900',
     letterSpacing: 0.5,
+  },
+  bannerNote: {
+    fontSize: 10,
+    fontWeight: '700',
+    marginTop: 4,
+    textAlign: 'center',
   },
   bannerSubtitle: {
     fontSize: 11,

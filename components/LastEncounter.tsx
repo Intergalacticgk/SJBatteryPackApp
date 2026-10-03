@@ -6,11 +6,14 @@ import {
   TouchableOpacity,
   Modal,
   ScrollView,
-  SafeAreaView,
   ActivityIndicator,
+  Dimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '../supabase';
 import { useAppTheme } from '../context/ThemeContext';
+
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export interface GameStats {
   sog: [number, number];
@@ -206,6 +209,7 @@ function mapGamecenterSummary(
 
 export default function LastEncounter() {
   const { theme } = useAppTheme();
+  const insets = useSafeAreaInsets();
   const [modalVisible, setModalVisible] = useState(false);
   const [lastGame, setLastGame] = useState<LastEncounterGame | null>(null);
   const [stats, setStats] = useState<GameStats | null>(null);
@@ -335,7 +339,15 @@ export default function LastEncounter() {
 
       <Modal animationType="slide" transparent={true} visible={modalVisible} onRequestClose={() => setModalVisible(false)}>
         <View style={styles.modalOverlay}>
-          <SafeAreaView style={[styles.modalContainer, { backgroundColor: theme.cardBg, borderColor: theme.accentGold }]}>
+          <View
+            style={[
+              styles.modalContainer,
+              {
+                backgroundColor: theme.cardBg,
+                borderColor: theme.accentGold,
+              },
+            ]}
+          >
             <View style={[styles.modalHeader, { borderBottomColor: theme.borderColor }]}>
               <Text style={[styles.modalHeaderTitle, { color: theme.accentGold }]}>MATCH REPORT & STATS</Text>
               <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.closeIconBtn}>
@@ -343,7 +355,25 @@ export default function LastEncounter() {
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.modalScrollView} contentContainerStyle={styles.modalScroll} showsVerticalScrollIndicator={true}>
+            {/* Same fix as the Reef Know Before You Go modal: wrap the
+                ScrollView in its own flex:1 + overflow:hidden container so
+                Android gives it a real bounded height instead of letting
+                content overflow past the modal. */}
+            <View style={{ flex: 1, overflow: 'hidden' }}>
+            <ScrollView
+              style={styles.modalScrollView}
+              contentContainerStyle={[
+                styles.modalScroll,
+                // Belt-and-suspenders: keep at least 24px clear of the
+                // bottom edge (nav bar / home indicator) — applied to the
+                // scrollable content now, not the outer flex container, so
+                // it can't shrink the ScrollView's own bounded height.
+                { paddingBottom: Math.max(insets.bottom, 24) + 24 },
+              ]}
+              nestedScrollEnabled={true}
+              showsVerticalScrollIndicator={true}
+              bounces={false}
+            >
               <View style={[styles.modalScoreCard, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}>
                 <Text style={[styles.modalGameSub, { color: theme.subText }]}>San Jose Barracuda vs {opp.name}</Text>
                 <View style={styles.modalScoreNumbers}>
@@ -490,6 +520,7 @@ export default function LastEncounter() {
                 </View>
               )}
             </ScrollView>
+            </View>
 
             <TouchableOpacity
               style={[styles.modalReturnBtn, { backgroundColor: theme.bg, borderTopColor: theme.borderColor }]}
@@ -497,7 +528,7 @@ export default function LastEncounter() {
             >
               <Text style={[styles.modalReturnText, { color: theme.accentGold }]}>Close Report</Text>
             </TouchableOpacity>
-          </SafeAreaView>
+          </View>
         </View>
       </Modal>
     </View>
@@ -530,7 +561,11 @@ const styles = StyleSheet.create({
   statsButton: { paddingVertical: 12, borderRadius: 10, alignItems: 'center', marginTop: 10 },
   statsButtonText: { color: '#FFFFFF', fontSize: 13, fontWeight: '900', letterSpacing: 0.5 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.85)', justifyContent: 'flex-end' },
-  modalContainer: { height: '90%', borderTopLeftRadius: 20, borderTopRightRadius: 20, borderWidth: 1 },
+  // Fixed pixel height (not a '%' string) plus overflow:'hidden', same as
+  // the Reef Know Before You Go modal in index.tsx — this is what lets
+  // Android give the inner ScrollView a real bounded height instead of
+  // letting stats/scoring plays/3 stars overflow past the modal uncut.
+  modalContainer: { height: SCREEN_HEIGHT * 0.82, borderTopLeftRadius: 20, borderTopRightRadius: 20, borderWidth: 1, overflow: 'hidden', flexDirection: 'column' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1 },
   modalHeaderTitle: { fontSize: 15, fontWeight: '900', letterSpacing: 1 },
   closeIconBtn: { padding: 4 },

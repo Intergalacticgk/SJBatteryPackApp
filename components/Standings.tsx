@@ -38,60 +38,65 @@ const CONFERENCES: { id: ConferenceType; label: string }[] = [
   { id: 'EAST', label: 'Eastern Conf' },
 ];
 
-const TEAM_BADGES: Record<string, { abbr: string; bg: string; text: string }> = {
-  'ontario reign': { abbr: 'ONT', bg: '#111111', text: '#FFFFFF' },
-  'colorado eagles': { abbr: 'COL', bg: '#6F263D', text: '#FFFFFF' },
-  'henderson silver knights': { abbr: 'HSK', bg: '#777777', text: '#FFFFFF' },
-  'coachella valley firebirds': { abbr: 'CV', bg: '#D82232', text: '#FFFFFF' },
-  'bakersfield condors': { abbr: 'BAK', bg: '#002D62', text: '#FFFFFF' },
-  'san jose barracuda': { abbr: 'SJ', bg: '#266B73', text: '#FFFFFF' },
-  'san diego gulls': { abbr: 'SD', bg: '#FF4C00', text: '#FFFFFF' },
-  'tucson roadrunners': { abbr: 'TUC', bg: '#8C2633', text: '#FFFFFF' },
-  'abbotsford canucks': { abbr: 'ABB', bg: '#00843D', text: '#FFFFFF' },
-  'calgary wranglers': { abbr: 'CGY', bg: '#C8102E', text: '#FFFFFF' },
-};
-
 const BASE_FALLBACK_DIVISIONS: Record<DivisionType, StandingRow[]> = {
   PACIFIC: [
-    { rank: 1, abbr: 'ONT', name: 'Reign', badgeBg: '#111111', badgeText: '#FFFFFF', gp: 72, w: 47, l: 20, otl: 3, sol: 2, pts: 99, pct: '.688', diff: '+50', isCuda: false, conference: 'WEST', division: 'PACIFIC' },
-    { rank: 2, abbr: 'COL', name: 'Eagles', badgeBg: '#6F263D', badgeText: '#FFFFFF', gp: 72, w: 41, l: 20, otl: 6, sol: 5, pts: 93, pct: '.646', diff: '+39', isCuda: false, conference: 'WEST', division: 'PACIFIC' },
-    { rank: 3, abbr: 'HSK', name: 'Silver Knights', badgeBg: '#777777', badgeText: '#FFFFFF', gp: 72, w: 39, l: 21, otl: 7, sol: 5, pts: 90, pct: '.625', diff: '+38', isCuda: false, conference: 'WEST', division: 'PACIFIC' },
-    { rank: 4, abbr: 'CV', name: 'Firebirds', badgeBg: '#D82232', badgeText: '#FFFFFF', gp: 72, w: 41, l: 25, otl: 6, sol: 0, pts: 88, pct: '.611', diff: '+17', isCuda: false, conference: 'WEST', division: 'PACIFIC' },
-    { rank: 5, abbr: 'BAK', name: 'Condors', badgeBg: '#002D62', badgeText: '#FFFFFF', gp: 72, w: 37, l: 23, otl: 11, sol: 1, pts: 86, pct: '.597', diff: '+8', isCuda: false, conference: 'WEST', division: 'PACIFIC' },
+    { rank: 1, abbr: 'ONT', name: 'Reign', badgeBg: '#000000', badgeText: '#FFFFFF', gp: 72, w: 47, l: 20, otl: 3, sol: 2, pts: 99, pct: '.688', diff: '+50', isCuda: false, conference: 'WEST', division: 'PACIFIC' },
+    { rank: 2, abbr: 'COL', name: 'Eagles', badgeBg: '#19398A', badgeText: '#FFD457', gp: 72, w: 41, l: 20, otl: 6, sol: 5, pts: 93, pct: '.646', diff: '+39', isCuda: false, conference: 'WEST', division: 'PACIFIC' },
+    { rank: 3, abbr: 'HSK', name: 'Silver Knights', badgeBg: '#000000', badgeText: '#B4975B', gp: 72, w: 39, l: 21, otl: 7, sol: 5, pts: 90, pct: '.625', diff: '+38', isCuda: false, conference: 'WEST', division: 'PACIFIC' },
+    { rank: 4, abbr: 'CV', name: 'Firebirds', badgeBg: '#001425', badgeText: '#FF681D', gp: 72, w: 41, l: 25, otl: 6, sol: 0, pts: 88, pct: '.611', diff: '+17', isCuda: false, conference: 'WEST', division: 'PACIFIC' },
+    { rank: 5, abbr: 'BAK', name: 'Condors', badgeBg: '#152342', badgeText: '#DF4E10', gp: 72, w: 37, l: 23, otl: 11, sol: 1, pts: 86, pct: '.597', diff: '+8', isCuda: false, conference: 'WEST', division: 'PACIFIC' },
     { rank: 6, abbr: 'SJ', name: 'Barracuda', badgeBg: '#266B73', badgeText: '#FFFFFF', gp: 72, w: 40, l: 28, otl: 2, sol: 2, pts: 84, pct: '.583', diff: '+13', isCuda: true, conference: 'WEST', division: 'PACIFIC' },
-    { rank: 7, abbr: 'SD', name: 'Gulls', badgeBg: '#FF4C00', badgeText: '#FFFFFF', gp: 72, w: 33, l: 27, otl: 8, sol: 4, pts: 78, pct: '.542', diff: '-4', isCuda: false, conference: 'WEST', division: 'PACIFIC' },
-    { rank: 8, abbr: 'TUC', name: 'Roadrunners', badgeBg: '#8C2633', badgeText: '#FFFFFF', gp: 72, w: 34, l: 28, otl: 10, sol: 0, pts: 78, pct: '.542', diff: '-9', isCuda: false, conference: 'WEST', division: 'PACIFIC' },
-    { rank: 9, abbr: 'ABB', name: 'Canucks', badgeBg: '#00843D', badgeText: '#FFFFFF', gp: 72, w: 28, l: 37, otl: 4, sol: 3, pts: 63, pct: '.438', diff: '-61', isCuda: false, conference: 'WEST', division: 'PACIFIC' },
-    { rank: 10, abbr: 'CGY', name: 'Wranglers', badgeBg: '#C8102E', badgeText: '#FFFFFF', gp: 72, w: 23, l: 34, otl: 10, sol: 5, pts: 61, pct: '.424', diff: '-66', isCuda: false, conference: 'WEST', division: 'PACIFIC' },
+    { rank: 7, abbr: 'SD', name: 'Gulls', badgeBg: '#FF4C00', badgeText: '#000000', gp: 72, w: 33, l: 27, otl: 8, sol: 4, pts: 78, pct: '.542', diff: '-4', isCuda: false, conference: 'WEST', division: 'PACIFIC' },
+    { rank: 8, abbr: 'TUC', name: 'Roadrunners', badgeBg: '#8E0A26', badgeText: '#FFFFFF', gp: 72, w: 34, l: 28, otl: 10, sol: 0, pts: 78, pct: '.542', diff: '-9', isCuda: false, conference: 'WEST', division: 'PACIFIC' },
+    { rank: 9, abbr: 'ABB', name: 'Canucks', badgeBg: '#0E1C2C', badgeText: '#FFFFFF', gp: 72, w: 28, l: 37, otl: 4, sol: 3, pts: 63, pct: '.438', diff: '-61', isCuda: false, conference: 'WEST', division: 'PACIFIC' },
+    { rank: 10, abbr: 'CGY', name: 'Wranglers', badgeBg: '#C2273D', badgeText: '#FFFFFF', gp: 72, w: 23, l: 34, otl: 10, sol: 5, pts: 61, pct: '.424', diff: '-66', isCuda: false, conference: 'WEST', division: 'PACIFIC' },
   ],
   CENTRAL: [
-    { rank: 1, abbr: 'GR', name: 'Griffins', badgeBg: '#C8102E', badgeText: '#002D62', gp: 72, w: 51, l: 16, otl: 4, sol: 1, pts: 107, pct: '.743', diff: '+96', isCuda: false, conference: 'WEST', division: 'CENTRAL' },
-    { rank: 2, abbr: 'CHI', name: 'Wolves', badgeBg: '#8B0000', badgeText: '#FFFFFF', gp: 72, w: 36, l: 21, otl: 8, sol: 7, pts: 87, pct: '.604', diff: '+7', isCuda: false, conference: 'WEST', division: 'CENTRAL' },
-    { rank: 3, abbr: 'TEX', name: 'Stars', badgeBg: '#006847', badgeText: '#FFFFFF', gp: 72, w: 37, l: 29, otl: 4, sol: 2, pts: 80, pct: '.556', diff: '-6', isCuda: false, conference: 'WEST', division: 'CENTRAL' },
-    { rank: 4, abbr: 'MB', name: 'Moose', badgeBg: '#002D62', badgeText: '#A2AAAD', gp: 72, w: 35, l: 29, otl: 5, sol: 3, pts: 78, pct: '.542', diff: '-31', isCuda: false, conference: 'WEST', division: 'CENTRAL' },
-    { rank: 5, abbr: 'MIL', name: 'Admirals', badgeBg: '#002D62', badgeText: '#A2AAAD', gp: 72, w: 32, l: 33, otl: 4, sol: 3, pts: 71, pct: '.493', diff: '-15', isCuda: false, conference: 'WEST', division: 'CENTRAL' },
-    { rank: 6, abbr: 'IA', name: 'Wild', badgeBg: '#154734', badgeText: '#DDCBA4', gp: 72, w: 27, l: 36, otl: 6, sol: 3, pts: 63, pct: '.438', diff: '-47', isCuda: false, conference: 'WEST', division: 'CENTRAL' },
-    { rank: 7, abbr: 'RFD', name: 'IceHogs', badgeBg: '#C8102E', badgeText: '#000000', gp: 72, w: 28, l: 39, otl: 3, sol: 2, pts: 61, pct: '.424', diff: '-49', isCuda: false, conference: 'WEST', division: 'CENTRAL' },
+    { rank: 1, abbr: 'GR', name: 'Griffins', badgeBg: '#E51636', badgeText: '#FFFFFF', gp: 72, w: 51, l: 16, otl: 4, sol: 1, pts: 107, pct: '.743', diff: '+96', isCuda: false, conference: 'WEST', division: 'CENTRAL' },
+    { rank: 2, abbr: 'CHI', name: 'Wolves', badgeBg: '#E03A3E', badgeText: '#FFFFFF', gp: 72, w: 36, l: 21, otl: 8, sol: 7, pts: 87, pct: '.604', diff: '+7', isCuda: false, conference: 'WEST', division: 'CENTRAL' },
+    { rank: 3, abbr: 'TEX', name: 'Stars', badgeBg: '#1B6031', badgeText: '#FFFFFF', gp: 72, w: 37, l: 29, otl: 4, sol: 2, pts: 80, pct: '.556', diff: '-6', isCuda: false, conference: 'WEST', division: 'CENTRAL' },
+    { rank: 4, abbr: 'MB', name: 'Moose', badgeBg: '#041E41', badgeText: '#FFFFFF', gp: 72, w: 35, l: 29, otl: 5, sol: 3, pts: 78, pct: '.542', diff: '-31', isCuda: false, conference: 'WEST', division: 'CENTRAL' },
+    { rank: 5, abbr: 'MIL', name: 'Admirals', badgeBg: '#0E2B58', badgeText: '#FFFFFF', gp: 72, w: 32, l: 33, otl: 4, sol: 3, pts: 71, pct: '.493', diff: '-15', isCuda: false, conference: 'WEST', division: 'CENTRAL' },
+    { rank: 6, abbr: 'IA', name: 'Wild', badgeBg: '#144733', badgeText: '#DFCAA3', gp: 72, w: 27, l: 36, otl: 6, sol: 3, pts: 63, pct: '.438', diff: '-47', isCuda: false, conference: 'WEST', division: 'CENTRAL' },
+    { rank: 7, abbr: 'RFD', name: 'IceHogs', badgeBg: '#DB1931', badgeText: '#FFFFFF', gp: 72, w: 28, l: 39, otl: 3, sol: 2, pts: 61, pct: '.424', diff: '-49', isCuda: false, conference: 'WEST', division: 'CENTRAL' },
   ],
   ATLANTIC: [
-    { rank: 1, abbr: 'PRO', name: 'Bruins', badgeBg: '#000000', badgeText: '#FFB81C', gp: 72, w: 54, l: 16, otl: 2, sol: 0, pts: 110, pct: '.764', diff: '+77', isCuda: false, conference: 'EAST', division: 'ATLANTIC' },
-    { rank: 2, abbr: 'WBS', name: 'Penguins', badgeBg: '#000000', badgeText: '#CFC493', gp: 72, w: 46, l: 17, otl: 7, sol: 2, pts: 101, pct: '.701', diff: '+57', isCuda: false, conference: 'EAST', division: 'ATLANTIC' },
-    { rank: 3, abbr: 'CLT', name: 'Checkers', badgeBg: '#C8102E', badgeText: '#002D62', gp: 72, w: 44, l: 23, otl: 5, sol: 0, pts: 93, pct: '.646', diff: '+51', isCuda: false, conference: 'EAST', division: 'ATLANTIC' },
-    { rank: 4, abbr: 'BRI', name: 'Islanders', badgeBg: '#00539B', badgeText: '#F47920', gp: 72, w: 34, l: 30, otl: 3, sol: 5, pts: 76, pct: '.528', diff: '-3', isCuda: false, conference: 'EAST', division: 'ATLANTIC' },
-    { rank: 5, abbr: 'HER', name: 'Bears', badgeBg: '#4A2A18', badgeText: '#D1AB66', gp: 72, w: 32, l: 31, otl: 6, sol: 3, pts: 73, pct: '.507', diff: '-20', isCuda: false, conference: 'EAST', division: 'ATLANTIC' },
-    { rank: 6, abbr: 'SPR', name: 'Thunderbirds', badgeBg: '#002D62', badgeText: '#39A9DC', gp: 72, w: 32, l: 32, otl: 6, sol: 2, pts: 72, pct: '.500', diff: '-33', isCuda: false, conference: 'EAST', division: 'ATLANTIC' },
-    { rank: 7, abbr: 'LV', name: 'Phantoms', badgeBg: '#F47920', badgeText: '#000000', gp: 72, w: 31, l: 35, otl: 3, sol: 3, pts: 68, pct: '.472', diff: '-37', isCuda: false, conference: 'EAST', division: 'ATLANTIC' },
-    { rank: 8, abbr: 'HFD', name: 'Wolf Pack', badgeBg: '#002D62', badgeText: '#C8102E', gp: 72, w: 26, l: 38, otl: 5, sol: 3, pts: 60, pct: '.417', diff: '-63', isCuda: false, conference: 'EAST', division: 'ATLANTIC' },
+    { rank: 1, abbr: 'PRO', name: 'Bruins', badgeBg: '#000000', badgeText: '#FBB337', gp: 72, w: 54, l: 16, otl: 2, sol: 0, pts: 110, pct: '.764', diff: '+77', isCuda: false, conference: 'EAST', division: 'ATLANTIC' },
+    { rank: 2, abbr: 'WBS', name: 'Penguins', badgeBg: '#000000', badgeText: '#FEC23D', gp: 72, w: 46, l: 17, otl: 7, sol: 2, pts: 101, pct: '.701', diff: '+57', isCuda: false, conference: 'EAST', division: 'ATLANTIC' },
+    { rank: 3, abbr: 'CLT', name: 'Checkers', badgeBg: '#E51A38', badgeText: '#FFFFFF', gp: 72, w: 44, l: 23, otl: 5, sol: 0, pts: 93, pct: '.646', diff: '+51', isCuda: false, conference: 'EAST', division: 'ATLANTIC' },
+    { rank: 4, abbr: 'HER', name: 'Bears', badgeBg: '#472A2B', badgeText: '#FFFFFF', gp: 72, w: 32, l: 31, otl: 6, sol: 3, pts: 73, pct: '.507', diff: '-20', isCuda: false, conference: 'EAST', division: 'ATLANTIC' },
+    { rank: 5, abbr: 'SPR', name: 'Thunderbirds', badgeBg: '#041E41', badgeText: '#FFFFFF', gp: 72, w: 32, l: 32, otl: 6, sol: 2, pts: 72, pct: '.500', diff: '-33', isCuda: false, conference: 'EAST', division: 'ATLANTIC' },
+    { rank: 6, abbr: 'LV', name: 'Phantoms', badgeBg: '#000000', badgeText: '#F58220', gp: 72, w: 31, l: 35, otl: 3, sol: 3, pts: 68, pct: '.472', diff: '-37', isCuda: false, conference: 'EAST', division: 'ATLANTIC' },
+    { rank: 7, abbr: 'HFD', name: 'Wolf Pack', badgeBg: '#00548E', badgeText: '#FFFFFF', gp: 72, w: 26, l: 38, otl: 5, sol: 3, pts: 60, pct: '.417', diff: '-63', isCuda: false, conference: 'EAST', division: 'ATLANTIC' },
   ],
   NORTH: [
-    { rank: 1, abbr: 'LAV', name: 'Rocket', badgeBg: '#002D62', badgeText: '#C8102E', gp: 72, w: 41, l: 23, otl: 3, sol: 5, pts: 90, pct: '.625', diff: '+33', isCuda: false, conference: 'EAST', division: 'NORTH' },
-    { rank: 2, abbr: 'SYR', name: 'Crunch', badgeBg: '#002D62', badgeText: '#A2AAAD', gp: 72, w: 41, l: 24, otl: 3, sol: 4, pts: 89, pct: '.618', diff: '+48', isCuda: false, conference: 'EAST', division: 'NORTH' },
-    { rank: 3, abbr: 'CLE', name: 'Monsters', badgeBg: '#000000', badgeText: '#872434', gp: 72, w: 37, l: 26, otl: 6, sol: 3, pts: 83, pct: '.576', diff: '-10', isCuda: false, conference: 'EAST', division: 'NORTH' },
-    { rank: 4, abbr: 'TOR', name: 'Marlies', badgeBg: '#002D62', badgeText: '#FFFFFF', gp: 72, w: 36, l: 26, otl: 5, sol: 5, pts: 82, pct: '.569', diff: '+1', isCuda: false, conference: 'EAST', division: 'NORTH' },
-    { rank: 5, abbr: 'ROC', name: 'Americans', badgeBg: '#C8102E', badgeText: '#002D62', gp: 72, w: 31, l: 31, otl: 6, sol: 4, pts: 72, pct: '.500', diff: '-21', isCuda: false, conference: 'EAST', division: 'NORTH' },
-    { rank: 6, abbr: 'UTC', name: 'Comets', badgeBg: '#002D62', badgeText: '#00843D', gp: 72, w: 30, l: 31, otl: 6, sol: 5, pts: 71, pct: '.493', diff: '-21', isCuda: false, conference: 'EAST', division: 'NORTH' },
-    { rank: 7, abbr: 'BEL', name: 'Senators', badgeBg: '#000000', badgeText: '#C8102E', gp: 72, w: 28, l: 35, otl: 8, sol: 1, pts: 65, pct: '.451', diff: '-39', isCuda: false, conference: 'EAST', division: 'NORTH' },
+    { rank: 1, abbr: 'LAV', name: 'Rocket', badgeBg: '#001E61', badgeText: '#FFFFFF', gp: 72, w: 41, l: 23, otl: 3, sol: 5, pts: 90, pct: '.625', diff: '+33', isCuda: false, conference: 'EAST', division: 'NORTH' },
+    { rank: 2, abbr: 'SYR', name: 'Crunch', badgeBg: '#1D427C', badgeText: '#FFFFFF', gp: 72, w: 41, l: 24, otl: 3, sol: 4, pts: 89, pct: '.618', diff: '+48', isCuda: false, conference: 'EAST', division: 'NORTH' },
+    { rank: 3, abbr: 'CLE', name: 'Monsters', badgeBg: '#005695', badgeText: '#FFFFFF', gp: 72, w: 37, l: 26, otl: 6, sol: 3, pts: 83, pct: '.576', diff: '-10', isCuda: false, conference: 'EAST', division: 'NORTH' },
+    { rank: 4, abbr: 'TOR', name: 'Marlies', badgeBg: '#003E7E', badgeText: '#FFFFFF', gp: 72, w: 36, l: 26, otl: 5, sol: 5, pts: 82, pct: '.569', diff: '+1', isCuda: false, conference: 'EAST', division: 'NORTH' },
+    { rank: 5, abbr: 'ROC', name: 'Americans', badgeBg: '#393A87', badgeText: '#FFFFFF', gp: 72, w: 31, l: 31, otl: 6, sol: 4, pts: 72, pct: '.500', diff: '-21', isCuda: false, conference: 'EAST', division: 'NORTH' },
+    { rank: 6, abbr: 'UTC', name: 'Comets', badgeBg: '#CF2031', badgeText: '#FFFFFF', gp: 72, w: 30, l: 31, otl: 6, sol: 5, pts: 71, pct: '.493', diff: '-21', isCuda: false, conference: 'EAST', division: 'NORTH' },
+    { rank: 7, abbr: 'BEL', name: 'Senators', badgeBg: '#E3173E', badgeText: '#FFFFFF', gp: 72, w: 28, l: 35, otl: 8, sol: 1, pts: 65, pct: '.451', diff: '-39', isCuda: false, conference: 'EAST', division: 'NORTH' },
+    // Hamilton Hammers: new for 2026-27, relocated from Bridgeport (NY Islanders affiliate), replacing
+    // Bridgeport Islanders in the Atlantic division and joining the North instead (per HockeyTech feed).
+    { rank: 8, abbr: 'HAM', name: 'Hammers', badgeBg: '#00539B', badgeText: '#FFFFFF', gp: 0, w: 0, l: 0, otl: 0, sol: 0, pts: 0, pct: '.000', diff: '+0', isCuda: false, conference: 'EAST', division: 'NORTH' },
   ],
+};
+
+// Lookup of display name + badge colors by team abbreviation (team_id), built from the
+// fallback data above so every division's teams resolve consistently without a separate map.
+const ABBR_META: Record<string, { name: string; bg: string; text: string }> = {};
+(Object.values(BASE_FALLBACK_DIVISIONS) as StandingRow[][]).forEach((rows) => {
+  rows.forEach((r) => {
+    ABBR_META[r.abbr] = { name: r.name, bg: r.badgeBg, text: r.badgeText };
+  });
+});
+
+const DIVISION_CONFERENCE: Record<DivisionType, ConferenceType> = {
+  PACIFIC: 'WEST',
+  CENTRAL: 'WEST',
+  ATLANTIC: 'EAST',
+  NORTH: 'EAST',
 };
 
 export default function Standings() {
@@ -102,15 +107,18 @@ export default function Standings() {
   const [selectedDivision, setSelectedDivision] = useState<DivisionType>('PACIFIC');
   const [selectedConference, setSelectedConference] = useState<ConferenceType>('WEST');
 
-  const [livePacific, setLivePacific] = useState<StandingRow[]>([]);
+  // Live standings grouped by division, pulled from Supabase. Seeded with the static
+  // fallback so the UI never flashes empty while the first fetch is in flight.
+  const [liveByDivision, setLiveByDivision] = useState<Record<DivisionType, StandingRow[]>>(
+    BASE_FALLBACK_DIVISIONS
+  );
   const [loading, setLoading] = useState(false);
-  const [is2026SeasonActive, setIs2026SeasonActive] = useState(false);
 
   useEffect(() => {
-    fetchLivePacificStandings();
+    fetchLiveStandings();
   }, []);
 
-  const fetchLivePacificStandings = async () => {
+  const fetchLiveStandings = async () => {
     try {
       setLoading(true);
       const { data, error } = await supabase
@@ -121,27 +129,33 @@ export default function Standings() {
       if (error) throw error;
 
       if (Array.isArray(data) && data.length > 0) {
-        const totalGP = data.reduce((acc, row) => acc + (Number(row.games_played) || 0), 0);
-        const avgGP = totalGP / data.length;
-        if (avgGP > 0 && avgGP < 60) {
-          setIs2026SeasonActive(true);
-        }
+        const grouped: Record<DivisionType, StandingRow[]> = {
+          PACIFIC: [],
+          CENTRAL: [],
+          ATLANTIC: [],
+          NORTH: [],
+        };
 
-        const formatted: StandingRow[] = data.map((t: any, idx: number) => {
-          const lowerName = (t.team_name || '').toLowerCase();
-          const badgeMeta = Object.keys(TEAM_BADGES).find((k) => lowerName.includes(k))
-            ? TEAM_BADGES[Object.keys(TEAM_BADGES).find((k) => lowerName.includes(k))!]
-            : { abbr: t.team_name.substring(0, 3).toUpperCase(), bg: '#333333', text: '#FFFFFF' };
+        data.forEach((t: any) => {
+          const divisionKey = String(t.division || '').toUpperCase() as DivisionType;
+          if (!grouped[divisionKey]) return; // skip any unrecognized division label
 
-          const isCuda = lowerName.includes('barracuda');
+          const abbr = String(t.team_id || t.team_code || '').toUpperCase();
+          const meta = ABBR_META[abbr];
+          const lowerName = String(t.team_name || '').toLowerCase();
+          const isCuda = abbr === 'SJ' || lowerName.includes('barracuda');
           const diffVal = Number(t.goals_for || 0) - Number(t.goals_against || 0);
 
-          return {
-            rank: Number(t.rank || idx + 1),
-            abbr: badgeMeta.abbr,
-            name: t.team_name.replace('San Jose ', '').replace('Coachella Valley ', ''),
-            badgeBg: badgeMeta.bg,
-            badgeText: badgeMeta.text,
+          grouped[divisionKey].push({
+            rank: Number(t.rank || grouped[divisionKey].length + 1),
+            abbr: meta ? abbr : abbr || (t.team_name || '???').substring(0, 3).toUpperCase(),
+            name:
+              meta?.name ||
+              String(t.team_name || '')
+                .replace('San Jose ', '')
+                .replace('Coachella Valley ', ''),
+            badgeBg: meta?.bg || '#333333',
+            badgeText: meta?.text || '#FFFFFF',
             gp: Number(t.games_played || 0),
             w: Number(t.wins || 0),
             l: Number(t.losses || 0),
@@ -151,39 +165,46 @@ export default function Standings() {
             pct: String(t.win_percentage || '.000'),
             diff: diffVal >= 0 ? `+${diffVal}` : `${diffVal}`,
             isCuda,
-            conference: 'WEST',
-            division: 'PACIFIC',
-          };
+            conference: DIVISION_CONFERENCE[divisionKey],
+            division: divisionKey,
+          });
         });
-        setLivePacific(formatted);
+
+        // Fall back to static data per-division only if that division came back empty
+        // (e.g. a partial sync failure), otherwise keep it sorted by rank.
+        (Object.keys(grouped) as DivisionType[]).forEach((key) => {
+          if (grouped[key].length === 0) {
+            grouped[key] = BASE_FALLBACK_DIVISIONS[key];
+          } else {
+            grouped[key].sort((a, b) => a.rank - b.rank);
+          }
+        });
+
+        setLiveByDivision(grouped);
       } else {
-        setLivePacific(BASE_FALLBACK_DIVISIONS.PACIFIC);
+        setLiveByDivision(BASE_FALLBACK_DIVISIONS);
       }
     } catch {
-      setLivePacific(BASE_FALLBACK_DIVISIONS.PACIFIC);
+      setLiveByDivision(BASE_FALLBACK_DIVISIONS);
     } finally {
       setLoading(false);
     }
   };
 
-  // Compile all league teams (incorporating live Pacific rows where available)
+  // Compile all league teams from the live, per-division data
   const allTeams: StandingRow[] = useMemo(() => {
-    const pacificSquads = livePacific.length > 0 ? livePacific : BASE_FALLBACK_DIVISIONS.PACIFIC;
     return [
-      ...pacificSquads,
-      ...BASE_FALLBACK_DIVISIONS.CENTRAL,
-      ...BASE_FALLBACK_DIVISIONS.ATLANTIC,
-      ...BASE_FALLBACK_DIVISIONS.NORTH,
+      ...liveByDivision.PACIFIC,
+      ...liveByDivision.CENTRAL,
+      ...liveByDivision.ATLANTIC,
+      ...liveByDivision.NORTH,
     ];
-  }, [livePacific]);
+  }, [liveByDivision]);
 
   // Compute displayed list based on chosen view mode
   const currentTeams: StandingRow[] = useMemo(() => {
     if (scope === 'DIVISION') {
-      if (selectedDivision === 'PACIFIC' && livePacific.length > 0) {
-        return livePacific;
-      }
-      return BASE_FALLBACK_DIVISIONS[selectedDivision];
+      return liveByDivision[selectedDivision];
     }
 
     if (scope === 'CONFERENCE') {
@@ -199,7 +220,7 @@ export default function Standings() {
       .slice()
       .sort((a, b) => b.pts - a.pts || parseFloat(b.pct) - parseFloat(a.pct))
       .map((t, i) => ({ ...t, rank: i + 1 }));
-  }, [scope, selectedDivision, selectedConference, livePacific, allTeams]);
+  }, [scope, selectedDivision, selectedConference, liveByDivision, allTeams]);
 
   // Dynamic header title and season label
   const getHeaderTitle = () => {
@@ -208,7 +229,7 @@ export default function Standings() {
     return 'AHL LEAGUE STANDINGS';
   };
 
-  const currentSeasonLabel = is2026SeasonActive ? '2026–2027' : '2025–2026 TOTALS';
+  const currentSeasonLabel = '2026–2027';
 
   return (
     <View style={styles.container}>
@@ -311,7 +332,7 @@ export default function Standings() {
           </View>
         )}
 
-        {loading && scope === 'DIVISION' && selectedDivision === 'PACIFIC' ? (
+        {loading && currentTeams.length === 0 ? (
           <ActivityIndicator size="small" color={theme.accentGold} style={{ padding: 20 }} />
         ) : (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scrollContainer}>

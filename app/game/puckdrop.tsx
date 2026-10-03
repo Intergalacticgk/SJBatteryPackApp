@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   StyleSheet,
   View,
@@ -617,6 +617,13 @@ export default function PuckDropScreen() {
     return entities;
   };
 
+  // Rebuild the physics world only when the game is actually reset (gameKey changes),
+  // not on every re-render (state ticks like the timer/score were previously recreating
+  // the whole Matter.js world + collision listeners + a pending setTimeout on every render,
+  // which piled up and froze the JS thread, especially during the game-over/initials flow).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const worldEntities = useMemo(() => setupWorld(), [gameKey]);
+
   const fetchLeaderboard = async () => {
     try {
       const { data, error } = await supabase
@@ -852,7 +859,7 @@ export default function PuckDropScreen() {
             key={gameKey}
             style={styles.gameCanvas}
             systems={[PhysicsAndAISystem, PhysicsSpeedClampSystem, GoalDetectionSystem]}
-            entities={setupWorld()}
+            entities={worldEntities}
             running={gameActive && !isPaused && !overtimeModalVisible}
           />
         </View>
