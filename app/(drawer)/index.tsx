@@ -471,7 +471,7 @@ export default function HomeScreen() {
           
           <TouchableOpacity 
             style={[styles.gridButton, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]} 
-            onPress={() => router.push({ pathname: '/(drawer)/fanzone', params: { tab: 'GALLERY' } })}
+            onPress={() => router.push('/(drawer)/gallery')}
           >
             <Text style={[styles.gridButtonText, { color: theme.text }]} numberOfLines={1}>📸 Fan Gallery</Text>
           </TouchableOpacity>
