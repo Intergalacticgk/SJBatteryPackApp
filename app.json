@@ -47,7 +47,7 @@
     },
     "android": {
       "package": "com.sjbatterypack.myapp",
-      "versionCode": 66,
+      "versionCode": 67,
       "softwareKeyboardLayoutMode": "resize",
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
