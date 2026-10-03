@@ -312,7 +312,7 @@ export default function PuckDropScreen() {
     if (gameActive && !isPaused && !overtimeModalVisible && entities.ai?.body && entities.puck?.body) {
       const ai = entities.ai.body;
       const puck = entities.puck.body;
-      const maxSpeed = entities.aiMaxSpeed || 2.2;
+      const maxSpeed = entities.aiMaxSpeed || 3.2;
 
       let aiTargetX = Math.max(50, Math.min(RINK_WIDTH - 50, puck.position.x));
       let aiTargetY = 90;
@@ -497,7 +497,7 @@ export default function PuckDropScreen() {
     engine.gravity.x = 0;
     const world = engine.world;
 
-    const aiSpeed = gameMode === 'TOURNAMENT' ? 2.3 + (tournamentRound * 0.2) : 2.0;
+    const aiSpeed = gameMode === 'TOURNAMENT' ? 3.3 + (tournamentRound * 0.2) : 3.0; // bumped +1 across the board, opponents were too easy to beat to the puck
 
     const playerMallet = Matter.Bodies.circle(RINK_WIDTH / 2, RINK_HEIGHT - 90, 24, { 
       isStatic: true,
