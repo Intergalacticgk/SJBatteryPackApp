@@ -47,7 +47,7 @@
     },
     "android": {
       "package": "com.sjbatterypack.myapp",
-      "versionCode": 67,
+      "versionCode": 68,
       "softwareKeyboardLayoutMode": "resize",
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
@@ -115,7 +115,8 @@
           }
         }
       ],
-      "./plugins/withDisableLintVital"
+      "./plugins/withDisableLintVital",
+      "./plugins/withNdk28"
     ],
     "experiments": {
       "typedRoutes": true
