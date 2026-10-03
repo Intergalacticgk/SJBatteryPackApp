@@ -81,10 +81,17 @@ Deno.serve(async (_req) => {
     // --- Gameday Morning Reminder: once, at 9:00-9:04 AM Pacific, for any game (home or away) ---
     if (nowMinutes >= 9 * 60 && nowMinutes < 9 * 60 + 5) {
       if (await claimOnce(todayGame.game_id, 'gameday_morning')) {
+        const isHome = todayGame.home_away === 'HOME';
+        const title = isHome
+          ? "🚨 IT'S GAMEDAY IN THE REEF 🪸"
+          : `🚨 IT'S GAMEDAY AT ${todayGame.venue || 'the road arena'}`;
+        const body = isHome
+          ? "Check the Know Before You Go guide and rally with Section 108 tonight at Tech CU Arena."
+          : `The Barracuda are on the road tonight at ${todayGame.venue || 'their opponent\'s arena'} vs. ${todayGame.opponent || 'their opponent'}. Catch the broadcast and rally from home!`;
         results.gamedayMorning = await sendToAudience(
           'notify_gameday_reminders',
-          "🚨 IT'S GAMEDAY IN CUDA COUNTRY!",
-          'Check the Know Before You Go guide and rally with Section 108 tonight at Tech CU Arena.',
+          title,
+          body,
           { screen: '/(drawer)/fanzone' }
         );
       } else {
