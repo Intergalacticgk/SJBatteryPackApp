@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Platform, View } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -6,7 +6,11 @@ import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from 'expo-av';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../supabase';
+import LiveScoresOptInModal from '../components/LiveScoresOptInModal';
+
+const LIVE_SCORES_PROMPT_KEY = 'liveScoresPromptShown';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -64,6 +68,20 @@ export default function RootLayout() {
   const router = useRouter();
 const notificationListener = useRef<Notifications.EventSubscription | null>(null);
 const responseListener = useRef<Notifications.EventSubscription | null>(null);
+const [deviceToken, setDeviceToken] = useState<string | null>(null);
+const [showLiveScoresPrompt, setShowLiveScoresPrompt] = useState(false);
+
+const handleLiveScoresChoice = async (turnOn: boolean) => {
+  setShowLiveScoresPrompt(false);
+  await AsyncStorage.setItem(LIVE_SCORES_PROMPT_KEY, '1');
+  if (turnOn && deviceToken) {
+    const { error } = await supabase
+      .from('push_tokens')
+      .update({ notify_live_scores: true, updated_at: new Date().toISOString() })
+      .eq('token', deviceToken);
+    if (error) console.warn('Error enabling live scores:', error.message);
+  }
+};
 
   useEffect(() => {
     async function configureAudio() {
@@ -85,25 +103,45 @@ const responseListener = useRef<Notifications.EventSubscription | null>(null);
 
     registerForPushNotificationsAsync().then(async (token) => {
       if (token) {
+        setDeviceToken(token);
         try {
-          const { error } = await supabase.from('push_tokens').upsert(
-            {
+          // Only set the notify_* defaults on first INSERT for this token.
+          // A plain upsert with onConflict would overwrite the user's saved
+          // preferences back to their defaults every time the app restarts
+          // or the OS refreshes the push token.
+          const { data: existing } = await supabase
+            .from('push_tokens')
+            .select('token')
+            .eq('token', token)
+            .maybeSingle();
+
+          if (existing) {
+            const { error } = await supabase
+              .from('push_tokens')
+              .update({ platform: Platform.OS, updated_at: new Date().toISOString() })
+              .eq('token', token);
+            if (error) console.warn('Supabase push_tokens update error:', error.message);
+          } else {
+            const { error } = await supabase.from('push_tokens').insert({
               token,
               platform: Platform.OS,
-              notify_live_scores: true,
+              // Live Goals & Score Updates default OFF — the user is asked
+              // explicitly via the opt-in prompt below. Gameday reminders
+              // and events/tabling alerts default ON.
+              notify_live_scores: false,
               notify_gameday_reminders: true,
               notify_events: true,
               updated_at: new Date().toISOString(),
-            },
-            { onConflict: 'token' }
-          );
-          if (error) {
-            console.warn('Supabase push_tokens upsert error:', error.message);
-          } else {
-            console.log('Push token successfully synced to Supabase!');
+            });
+            if (error) console.warn('Supabase push_tokens insert error:', error.message);
+          }
+
+          const alreadyPrompted = await AsyncStorage.getItem(LIVE_SCORES_PROMPT_KEY);
+          if (!alreadyPrompted) {
+            setShowLiveScoresPrompt(true);
           }
         } catch (tokenErr) {
-          console.warn('Error upserting to push_tokens:', tokenErr);
+          console.warn('Error syncing push_tokens:', tokenErr);
         }
       }
     });
@@ -128,6 +166,7 @@ return (
       <Stack.Screen name="(drawer)" />
       {/* Add more Stack.Screen rows here */}
     </Stack>
+    <LiveScoresOptInModal visible={showLiveScoresPrompt} onChoice={handleLiveScoresChoice} />
   </View>
 );
 }

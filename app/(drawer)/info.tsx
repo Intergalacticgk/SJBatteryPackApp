@@ -68,7 +68,7 @@ export default function AccountScreen() {
   const [stmExpanded, setStmExpanded] = useState(false);
   
   const [notificationsExpanded, setNotificationsExpanded] = useState(false);
-  const [notifyLiveScores, setNotifyLiveScores] = useState(true);
+  const [notifyLiveScores, setNotifyLiveScores] = useState(false);
   const [notifyGamedayReminders, setNotifyGamedayReminders] = useState(true);
   const [notifyEvents, setNotifyEvents] = useState(true);
   const [deviceToken, setDeviceToken] = useState<string | null>(null);
@@ -82,7 +82,7 @@ export default function AccountScreen() {
           setDeviceToken(tokenData.data);
           const { data } = await supabase.from('push_tokens').select('notify_live_scores, notify_gameday_reminders, notify_events').eq('token', tokenData.data).single();
           if (data) {
-            setNotifyLiveScores(data.notify_live_scores ?? true);
+            setNotifyLiveScores(data.notify_live_scores ?? false);
             setNotifyGamedayReminders(data.notify_gameday_reminders ?? true);
             setNotifyEvents(data.notify_events ?? true);
           }
