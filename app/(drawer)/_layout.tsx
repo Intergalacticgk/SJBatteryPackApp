@@ -111,12 +111,12 @@ function DrawerNavigation() {
           }} 
         />
 
-        {/* 5. 🌟 Prospects Tracker */}
+        {/* 5. 🦈 Sharks Roster */}
         <Drawer.Screen 
-          name="prospects" 
+          name="sharksroster" 
           options={{ 
-            drawerLabel: 'Prospects Tracker', 
-            title: 'Sharks System Prospects' 
+            drawerLabel: 'Sharks Roster', 
+            title: 'San Jose Sharks Roster' 
           }} 
         />
 
