@@ -8,10 +8,7 @@ import Constants from 'expo-constants';
 import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from 'expo-av';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../supabase';
-import LiveScoresOptInModal from '../components/LiveScoresOptInModal';
 import { getActiveChatRoom } from '../utils/chatPresence';
-
-const LIVE_SCORES_PROMPT_KEY = 'liveScoresPromptShown';
 
 Notifications.setNotificationHandler({
   handleNotification: async (notification) => {
@@ -75,7 +72,6 @@ export default function RootLayout() {
 const notificationListener = useRef<Notifications.EventSubscription | null>(null);
 const responseListener = useRef<Notifications.EventSubscription | null>(null);
 const [deviceToken, setDeviceToken] = useState<string | null>(null);
-const [showLiveScoresPrompt, setShowLiveScoresPrompt] = useState(false);
 
   // Link this device's push token to the signed-in user so chat notifications
   // skip the sender's own device. Cleared on sign-out.
@@ -94,18 +90,6 @@ const [showLiveScoresPrompt, setShowLiveScoresPrompt] = useState(false);
     });
     return () => sub.subscription.unsubscribe();
   }, [deviceToken]);
-
-const handleLiveScoresChoice = async (turnOn: boolean) => {
-  setShowLiveScoresPrompt(false);
-  await AsyncStorage.setItem(LIVE_SCORES_PROMPT_KEY, '1');
-  if (turnOn && deviceToken) {
-    const { error } = await supabase
-      .from('push_tokens')
-      .update({ notify_live_scores: true, updated_at: new Date().toISOString() })
-      .eq('token', deviceToken);
-    if (error) console.warn('Error enabling live scores:', error.message);
-  }
-};
 
   useEffect(() => {
     async function configureAudio() {
@@ -150,7 +134,7 @@ const handleLiveScoresChoice = async (turnOn: boolean) => {
               token,
               platform: Platform.OS,
               // Live Goals & Score Updates default OFF — the user is asked
-              // explicitly via the opt-in prompt below. Gameday reminders
+              // explicitly via the opt-in prompt on the Schedule tab. Gameday reminders
               // and events/tabling alerts default ON.
               notify_live_scores: false,
               notify_gameday_reminders: true,
@@ -163,11 +147,6 @@ const handleLiveScoresChoice = async (turnOn: boolean) => {
               updated_at: new Date().toISOString(),
             });
             if (error) console.warn('Supabase push_tokens insert error:', error.message);
-          }
-
-          const alreadyPrompted = await AsyncStorage.getItem(LIVE_SCORES_PROMPT_KEY);
-          if (!alreadyPrompted) {
-            setShowLiveScoresPrompt(true);
           }
         } catch (tokenErr) {
           console.warn('Error syncing push_tokens:', tokenErr);
@@ -199,7 +178,6 @@ return (
       <Stack.Screen name="(drawer)" />
       {/* Add more Stack.Screen rows here */}
     </Stack>
-    <LiveScoresOptInModal visible={showLiveScoresPrompt} onChoice={handleLiveScoresChoice} />
   </View>
 );
 }

@@ -11,10 +11,19 @@ import {
   Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Alert } from 'react-native';
+import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from 'expo-router';
+import LiveScoresOptInModal from '../../components/LiveScoresOptInModal';
 import { StatusBar } from 'expo-status-bar';
 import { supabase } from '../../supabase';
 import { useAppTheme } from '../../context/ThemeContext';
 import MatchReportModal, { GameStats, SJ_THEME, mapGamecenterSummary } from '../../components/MatchReportModal';
+
+// Same key the old launch-time prompt used, so anyone who already answered is not asked again.
+const LIVE_SCORES_PROMPT_KEY = 'liveScoresPromptShown';
 
 const GC_BASE = 'https://lscluster.hockeytech.com/feed/index.php?feed=gc&tab=gamesummary';
 const GC_KEY = 'ccb91f29d6744675';
@@ -47,6 +56,44 @@ const SCHEDULE_FILTERS = ['All Games', 'Home', 'Away', 'Theme Nights'] as const;
 
 export default function ScheduleScreen() {
   const { theme } = useAppTheme();
+  const [showLiveScoresPrompt, setShowLiveScoresPrompt] = useState(false);
+
+  // Ask once, the first time the Schedule tab is opened, about live goal/score alerts.
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      AsyncStorage.getItem(LIVE_SCORES_PROMPT_KEY)
+        .then((shown) => { if (!cancelled && !shown) setShowLiveScoresPrompt(true); })
+        .catch(() => {});
+      return () => { cancelled = true; };
+    }, [])
+  );
+
+  const handleLiveScoresChoice = async (turnOn: boolean) => {
+    setShowLiveScoresPrompt(false);
+    await AsyncStorage.setItem(LIVE_SCORES_PROMPT_KEY, '1').catch(() => {});
+    if (!turnOn) return;
+    try {
+      const perm = await Notifications.getPermissionsAsync();
+      let status = (perm as any).status;
+      if (status !== 'granted') {
+        status = ((await Notifications.requestPermissionsAsync()) as any).status;
+      }
+      if (status !== 'granted') {
+        Alert.alert('Notifications are off', 'Turn on notifications for SJ Battery Pack in your phone settings to get live score alerts.');
+        return;
+      }
+      const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? 'd4824861-c576-4382-91d9-c7ef0f26cf5f';
+      const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
+      const { error } = await supabase
+        .from('push_tokens')
+        .update({ notify_live_scores: true, updated_at: new Date().toISOString() })
+        .eq('token', tokenData.data);
+      if (error) console.warn('Error enabling live scores:', error.message);
+    } catch (e) {
+      console.warn('Error enabling live scores:', e);
+    }
+  };
   const [filter, setFilter] = useState<typeof SCHEDULE_FILTERS[number]>('All Games');
   const [games, setGames] = useState<GameScheduleItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -559,6 +606,7 @@ export default function ScheduleScreen() {
         stats={reportStats}
         gameFact={reportGame?.theme_night ? `Theme Night: ${reportGame.theme_night}` : null}
       />
+      <LiveScoresOptInModal visible={showLiveScoresPrompt} onChoice={handleLiveScoresChoice} />
     </SafeAreaView>
   );
 }
