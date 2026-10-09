@@ -18,9 +18,26 @@ const BARRACUDA_TEAM_ID = "405";
 const AHL_KEY = "ccb91f29d6744675";
 
 // Confirmed LIVE against a real Sept 25, 2026 gameSummary response
-// (seasonId: "93"), so 93 is the correct 2026-27 AHL season_id.
+// (seasonId: "93"). This is the id for the roster/bio feed below, which
+// isn't season-scoped in any way that matters for jersey numbers/photos.
 const SEASON_ID = "93";
 const SEASON_LABEL = "2026-2027";
+
+// IMPORTANT — "93" is actually the PRESEASON/exhibition season_id, not the
+// regular season. Confirmed live on Oct 4, 2026 by checking the Oct 3 SJ
+// @ SD "Home Opener" gamecenter feed directly: its meta.season_id is "94",
+// not "93" — HockeyTech runs the regular season as a *separate* season_id
+// from preseason, not the same one with a game-level "EX" flag as
+// originally assumed. That wrong assumption is why `standings_baseline`
+// (a one-time frozen snapshot meant to subtract preseason noise) existed
+// at all — and why standings froze at 0-0-0 once the real season started:
+// the standings feed below was querying season=93, which stops changing
+// the moment preseason ends, so every live pull looked identical to the
+// baseline and net'd to zero. Querying 94 instead gives clean, already
+// regular-season-only totals straight from the feed — no baseline
+// subtraction needed, so that mechanism is removed below rather than kept
+// around as dead (and actively wrong, once 94 is in play) code.
+const STANDINGS_SEASON_ID = "94";
 
 function slugify(name: string): string {
   return name
@@ -220,7 +237,6 @@ serve(async (_req) => {
             // now; a real season stats feed is a separate follow-up once
             // games are being played.
             const jersey = row?.tp_jersey_number || row?.jersey_number;
-            const gp = parseInt(row?.games_played || "0", 10);
 
             // CONFIRMED LIVE (curl -I returned 200/image-jpeg for a real
             // player_id from this exact feed): HockeyTech serves headshots
@@ -235,28 +251,28 @@ serve(async (_req) => {
               ? `https://assets.leaguestat.com/ahl/240x240/${hockeytechPlayerId}.jpg`
               : undefined;
 
-            const statFields = isGoalie
-              ? {
-                  wins: parseInt(row?.wins || "0", 10),
-                  losses: parseInt(row?.losses || "0", 10),
-                  ot_losses: parseInt(row?.ot_losses || "0", 10),
-                  gaa: row?.goals_against_average || "0.00",
-                  sv_pct: row?.save_percentage || ".000",
-                  shutouts: parseInt(row?.shutouts || "0", 10),
-                }
-              : {
-                  goals: parseInt(row?.goals || "0", 10),
-                  assists: parseInt(row?.assists || "0", 10),
-                  points: parseInt(row?.points || "0", 10),
-                  plus_minus: parseInt(row?.plus_minus || "0", 10),
-                  pim: parseInt(row?.penalty_minutes || "0", 10),
-                };
-
-            const updatePayload = {
+            // DELIBERATELY NOT writing gp/goals/assists/points/wins/losses/
+            // etc. here anymore. CONFIRMED LIVE (Oct 4 2026, after the home
+            // opener): this "roster" statviewfeed view is cumulative across
+            // EVERY game tagged with this season_id, preseason exhibition
+            // games included — the exact same bug the standings baseline
+            // fix above exists for, except there's no clean way to snapshot
+            // a per-player "preseason baseline" after the fact the way
+            // standings_baseline did before the season started. Several
+            // players showed games_played=2 after exactly one real regular-
+            // season game had been played, with stats mixed in from
+            // preseason exhibitions too (confirmed against the real Oct 3
+            // gamecenter box score for game_id 1029087). Player stats are
+            // instead rebuilt from scratch every run in STEP 1b below, by
+            // summing the verified per-player box score sync-scores stores
+            // on every FINAL game's `schedule.stats.playerStats` — the same
+            // trusted per-game source already used for Last Encounter, and
+            // naturally regular-season-only since `schedule` never holds
+            // preseason games. This feed is now bio/photo info only.
+            const updatePayload: Record<string, unknown> = {
               jersey_number: jersey,
-              gp,
-              ...statFields,
               season: SEASON_LABEL,
+              ...(hockeytechPlayerId ? { hockeytech_player_id: hockeytechPlayerId } : {}),
               ...(liveImageUrl ? { image_url: liveImageUrl } : {}),
             };
 
@@ -341,6 +357,192 @@ serve(async (_req) => {
     }
 
     // -------------------------------------------------------------
+    // 1b. RECOMPUTE PLAYER REGULAR-SEASON STATS FROM FINAL GAME BOX SCORES
+    //
+    // See the comment above where statFields used to be written from the
+    // live roster feed: that feed is cumulative including preseason, so
+    // it can't be trusted for gp/goals/assists/etc. Instead, every run
+    // rebuilds every player's season line FROM SCRATCH by summing the
+    // verified per-player box score that sync-scores stores on every
+    // FINAL game's `schedule.stats.playerStats`. A full recompute (not an
+    // incremental add) makes this naturally idempotent — safe to re-run
+    // on every hourly tick, never double-counts even if a game's payload
+    // gets reprocessed. `schedule` only ever holds real regular-season
+    // games, so preseason exhibitions are structurally excluded, no
+    // baseline-subtraction trick needed here the way standings needed one.
+    // -------------------------------------------------------------
+    let playerStatsRecomputed = 0;
+    const playerStatsRecomputeErrors: string[] = [];
+    try {
+      const { data: finalGames, error: finalGamesErr } = await supabaseClient
+        .from("schedule")
+        .select("game_id, stats")
+        .eq("status", "FINAL")
+        .not("stats", "is", null);
+
+      if (finalGamesErr) throw finalGamesErr;
+
+      type PlayerAgg = {
+        name: string;
+        jersey_number: string;
+        position: string;
+        isGoalie: boolean;
+        gp: number;
+        goals: number;
+        assists: number;
+        plus_minus: number;
+        pim: number;
+        wins: number;
+        losses: number;
+        ot_losses: number;
+        seconds: number;
+        shots_against: number;
+        goals_against: number;
+        saves: number;
+        shutouts: number;
+      };
+      const byPlayerId = new Map<string, PlayerAgg>();
+
+      for (const game of finalGames || []) {
+        const players = (game as any).stats?.playerStats;
+        if (!Array.isArray(players)) continue;
+
+        for (const p of players) {
+          const pid = String(p.player_id || "").trim();
+          if (!pid) continue;
+          const isGoalie = Boolean(p.is_goalie);
+          // A dressed backup goalie who never touched the ice (0 seconds)
+          // didn't actually play this game — doesn't count toward GP.
+          const played = isGoalie ? Number(p.seconds || 0) > 0 : true;
+          if (!played) continue;
+
+          const agg: PlayerAgg = byPlayerId.get(pid) || {
+            name: p.name || "",
+            jersey_number: p.jersey_number || "",
+            position: p.position || (isGoalie ? "G" : ""),
+            isGoalie,
+            gp: 0, goals: 0, assists: 0, plus_minus: 0, pim: 0,
+            wins: 0, losses: 0, ot_losses: 0,
+            seconds: 0, shots_against: 0, goals_against: 0, saves: 0, shutouts: 0,
+          };
+          agg.gp += 1;
+          agg.jersey_number = p.jersey_number || agg.jersey_number;
+
+          if (isGoalie) {
+            agg.seconds += Number(p.seconds || 0);
+            agg.shots_against += Number(p.shots_against || 0);
+            agg.goals_against += Number(p.goals_against || 0);
+            agg.saves += Number(p.saves || 0);
+            if (p.win) agg.wins += 1;
+            if (p.loss) agg.losses += 1;
+            if (p.ot_loss || p.shootout_loss) agg.ot_losses += 1;
+            if (Number(p.goals_against || 0) === 0) agg.shutouts += 1;
+          } else {
+            agg.goals += Number(p.goals || 0);
+            agg.assists += Number(p.assists || 0);
+            agg.plus_minus += Number(p.plus_minus || 0);
+            agg.pim += Number(p.pim || 0);
+          }
+
+          byPlayerId.set(pid, agg);
+        }
+      }
+
+      for (const [pid, agg] of byPlayerId.entries()) {
+        const payload: Record<string, unknown> = {
+          gp: agg.gp,
+          hockeytech_player_id: pid,
+        };
+        if (agg.isGoalie) {
+          payload.wins = agg.wins;
+          payload.losses = agg.losses;
+          payload.ot_losses = agg.ot_losses;
+          payload.goals_against = agg.goals_against;
+          payload.saves = agg.saves;
+          payload.shots_against = agg.shots_against;
+          payload.shutouts = agg.shutouts;
+          payload.gaa = agg.seconds > 0 ? ((agg.goals_against * 3600) / agg.seconds).toFixed(2) : "0.00";
+          payload.sv_pct =
+            agg.shots_against > 0
+              ? (agg.saves / agg.shots_against).toFixed(3).replace(/^0/, "")
+              : ".000";
+        } else {
+          payload.goals = agg.goals;
+          payload.assists = agg.assists;
+          payload.points = agg.goals + agg.assists;
+          payload.plus_minus = agg.plus_minus;
+          payload.pim = agg.pim;
+        }
+
+        // Match by hockeytech_player_id first (set by a previous run of
+        // this step, or by the bio sync above) so an accented/misspelled
+        // name never creates a second duplicate row the way "Michal
+        // Stínil" / "Michal Stinil" did — only falls back to a fuzzy name
+        // match the first time a given player_id is seen.
+        const { data: byId } = await supabaseClient
+          .from("barracuda_roster")
+          .select("id")
+          .eq("hockeytech_player_id", pid)
+          .eq("season", SEASON_LABEL)
+          .maybeSingle();
+
+        let targetId = byId?.id;
+        if (!targetId) {
+          const { data: byName } = await supabaseClient
+            .from("barracuda_roster")
+            .select("id")
+            .ilike("name", `%${agg.name}%`)
+            .eq("season", SEASON_LABEL)
+            .limit(1)
+            .maybeSingle();
+          targetId = byName?.id;
+        }
+
+        if (targetId) {
+          const { error: updErr } = await supabaseClient
+            .from("barracuda_roster")
+            .update(payload)
+            .eq("id", targetId);
+          if (updErr) {
+            if (playerStatsRecomputeErrors.length < 3) {
+              playerStatsRecomputeErrors.push(`${agg.name}: ${updErr.message}`);
+            }
+          } else {
+            playerStatsRecomputed++;
+          }
+        } else if (playerStatsRecomputeErrors.length < 3) {
+          playerStatsRecomputeErrors.push(`${agg.name}: no matching roster row`);
+        }
+      }
+
+      // Zero out any current-season player who hasn't appeared in a FINAL
+      // game's box score yet (healthy scratch, call-up still waiting for
+      // their first game) so an old value never just sits there once this
+      // step stops touching a row.
+      const playedIds = new Set(byPlayerId.keys());
+      const { data: allCurrent } = await supabaseClient
+        .from("barracuda_roster")
+        .select("id, hockeytech_player_id, gp")
+        .eq("season", SEASON_LABEL);
+      for (const row of allCurrent || []) {
+        const pid = (row as any).hockeytech_player_id;
+        if (pid && playedIds.has(pid)) continue;
+        if (!(row as any).gp) continue; // already zero, skip the write
+        await supabaseClient
+          .from("barracuda_roster")
+          .update({
+            gp: 0, goals: 0, assists: 0, points: 0, plus_minus: 0, pim: 0,
+            wins: 0, losses: 0, ot_losses: 0, goals_against: 0, saves: 0,
+            shots_against: 0, shutouts: 0, gaa: "0.00", sv_pct: ".000",
+          })
+          .eq("id", (row as any).id);
+      }
+    } catch (e: any) {
+      console.warn("Player stats recompute failed:", e.message || e);
+      if (playerStatsRecomputeErrors.length < 3) playerStatsRecomputeErrors.push(String(e.message || e));
+    }
+
+    // -------------------------------------------------------------
     // 2. SYNC PACIFIC STANDINGS — real live fetch (previously this
     //    unconditionally re-wrote the same all-zero baseline every run,
     //    which is why the app was stuck showing "2025-2026 TOTALS":
@@ -357,25 +559,23 @@ serve(async (_req) => {
       .delete()
       .in("team_id", [...OLD_ABBR_STANDINGS_IDS, ...OLD_NUMERIC_STANDINGS_IDS]);
 
-    // HockeyTech's "teams/overall" endpoint for this season_id is cumulative
-    // across EVERY game tagged with it — including preseason exhibition
-    // games, which this installation keys under the same season_id as the
-    // real regular season (confirmed live: a Sept 25 "EX" game carried
-    // season_id "93", the same id used below). Those exhibition games are
-    // all final and will never change, so a one-time snapshot of them
-    // (seeded into standings_baseline before the season opener) can be
-    // subtracted from every future live pull to recover the real
-    // regular-season record automatically, with no nightly manual step.
-    const { data: baselineRows } = await supabaseClient
-      .from("standings_baseline")
-      .select("*");
-    const baselineByTeam = new Map<string, any>(
-      (baselineRows || []).map((b: any) => [String(b.team_id).toUpperCase(), b])
-    );
-
+    // CORRECTED: HockeyTech's AHL installation actually runs preseason and
+    // the regular season as two DIFFERENT season_ids, not one shared id with
+    // a per-game "EX" flag as originally assumed here — confirmed live by
+    // checking the Oct 3 "Home Opener" gamecenter feed directly, whose own
+    // meta.season_id is "94", not "93". season_id "93" is preseason only,
+    // and it's frozen (no longer updating) once preseason ends — that's why
+    // every live pull was coming back nearly identical to the standings_
+    // baseline snapshot and netting to ~0 everywhere once the real season
+    // started. Querying STANDINGS_SEASON_ID ("94") instead returns totals
+    // that are already regular-season-only, straight from the feed, so no
+    // baseline subtraction is needed at all — that mechanism (and the
+    // standings_baseline table/read) has been removed below. The table
+    // itself is left in the database untouched in case it's ever needed
+    // again, just no longer read here.
     try {
       const standingsUrl =
-        `https://lscluster.hockeytech.com/feed/index.php?feed=statviewfeed&view=teams&season=${SEASON_ID}` +
+        `https://lscluster.hockeytech.com/feed/index.php?feed=statviewfeed&view=teams&season=${STANDINGS_SEASON_ID}` +
         `&context=overall&groupTeamsBy=division&sort=points&special=false&conference_id=-1&division_id=-1` +
         `&key=${AHL_KEY}&client_code=${CLIENT_CODE}&site_id=3&league_id=4&lang=en`;
       const res = await fetch(standingsUrl);
@@ -404,44 +604,27 @@ serve(async (_req) => {
             const teamCode = String(row.team_code || "").trim().toUpperCase();
             if (!ALL_AHL_TEAM_CODES.has(teamCode)) continue;
 
-            // Raw cumulative totals straight from HockeyTech — still
-            // includes the frozen preseason baseline at this point.
-            const rawGp = parseInt(row.games_played || "0", 10);
-            const rawWins = parseInt(row.wins || "0", 10);
-            const rawLosses = parseInt(row.losses || "0", 10);
-            const rawOtLosses = parseInt(row.ot_losses || row.overtime_losses || "0", 10);
-            const rawSolLosses = parseInt(row.shootout_losses || row.sol_losses || "0", 10);
-            const rawPoints = parseInt(row.points || "0", 10);
-            const rawGoalsFor = parseInt(row.goals_for || "0", 10);
-            const rawGoalsAgainst = parseInt(row.goals_against || "0", 10);
-
-            // Subtract the one-time preseason baseline (see note above) —
-            // Math.max(0, ...) guards against a team that somehow has fewer
-            // live games than its own baseline (feed hiccup, re-seeded
-            // baseline, etc.) ever going negative in the app.
-            const base = baselineByTeam.get(teamCode) || {};
-            const gp = Math.max(0, rawGp - (base.games_played || 0));
-            const wins = Math.max(0, rawWins - (base.wins || 0));
-            const losses = Math.max(0, rawLosses - (base.losses || 0));
-            const otLosses = Math.max(0, rawOtLosses - (base.ot_losses || 0));
-            const solLosses = Math.max(0, rawSolLosses - (base.sol_losses || 0));
-            const points = Math.max(0, rawPoints - (base.points || 0));
-            const goalsFor = Math.max(0, rawGoalsFor - (base.goals_for || 0));
-            const goalsAgainst = Math.max(0, rawGoalsAgainst - (base.goals_against || 0));
-            // Recomputed, not taken from the feed — HockeyTech's own
-            // "percentage" field is cumulative over the raw (preseason-
-            // included) totals, so it has to be rebuilt from the
-            // baseline-adjusted numbers using the AHL's standard 2-points-
-            // per-game-played formula.
+            // Season_id 94 (STANDINGS_SEASON_ID) is already regular-season
+            // only — no preseason contamination, so these raw parsed values
+            // are the final values with no baseline subtraction needed.
+            const gp = parseInt(row.games_played || "0", 10);
+            const wins = parseInt(row.wins || "0", 10);
+            const losses = parseInt(row.losses || "0", 10);
+            const otLosses = parseInt(row.ot_losses || row.overtime_losses || "0", 10);
+            const solLosses = parseInt(row.shootout_losses || row.sol_losses || "0", 10);
+            const points = parseInt(row.points || "0", 10);
+            const goalsFor = parseInt(row.goals_for || "0", 10);
+            const goalsAgainst = parseInt(row.goals_against || "0", 10);
+            // Recomputed rather than trusting the feed's own "percentage"
+            // field, using the AHL's standard 2-points-per-game formula.
             const winPercentage = gp > 0 ? (points / (gp * 2)).toFixed(3) : ".000";
 
             rows.push({
               team_id: teamCode,
               team_name: row.name || row.team_name || "",
               division: divisionLabel,
-              // Placeholder — HockeyTech's own rank reflects the raw
-              // (preseason-included) ordering, so it's recomputed below
-              // from the baseline-adjusted numbers instead of used as-is.
+              // Placeholder — rank is recomputed below from these numbers
+              // instead of trusting HockeyTech's own ordering directly.
               rank: 0,
               games_played: gp,
               wins,
@@ -458,12 +641,12 @@ serve(async (_req) => {
           }
         }
 
-        // Recompute rank from the adjusted (baseline-subtracted) standings
-        // — WITHIN each division, not across the whole league, since
-        // Standings.tsx's DIVISION view trusts `rank` directly as each
-        // team's position inside its own division. Same tiebreak as the
-        // AHL standard and as the client-side sort Standings.tsx already
-        // applies for its CONFERENCE/LEAGUE views (points, then win pct).
+        // Recompute rank from these standings — WITHIN each division, not
+        // across the whole league, since Standings.tsx's DIVISION view
+        // trusts `rank` directly as each team's position inside its own
+        // division. Same tiebreak as the AHL standard and as the
+        // client-side sort Standings.tsx already applies for its
+        // CONFERENCE/LEAGUE views (points, then win pct).
         const byDivision = new Map<string, any[]>();
         for (const r of rows) {
           if (!byDivision.has(r.division)) byDivision.set(r.division, []);
@@ -669,9 +852,23 @@ serve(async (_req) => {
       // FIXED: the app's prospects.tsx reads from `sharks_prospects`, not
       // `prospects` — this table name was wrong, so none of this data was
       // ever actually reaching the app.
+      // IMPORTANT: this upsert is bio/roster info ONLY. These rows are built
+      // with hardcoded gp/goals/assists/points/plus_minus/pim = 0 above, and
+      // upserting them used to overwrite the real NHL/AHL stats that
+      // sync-prospect-stats writes (it runs at :00, this runs later in the
+      // hour) — which is exactly why the Sharks' NHL stats were always blank
+      // even though the NHL feed had 2 games of data. Stat columns are
+      // stripped here so sync-prospect-stats is the single owner of them;
+      // brand-new rows still get the column default of 0.
+      const STAT_KEYS = ["gp", "goals", "assists", "points", "plus_minus", "pim"];
+      const prospectRowsNoStats = allProspectRows.map((p: any) => {
+        const copy = { ...p };
+        for (const k of STAT_KEYS) delete copy[k];
+        return copy;
+      });
       const { error: prospectsErr } = await supabaseClient
         .from("sharks_prospects")
-        .upsert(allProspectRows, { onConflict: "nhl_id" });
+        .upsert(prospectRowsNoStats, { onConflict: "nhl_id" });
       if (prospectsErr) {
         prospectsWriteError = prospectsErr.message;
         console.warn("sharks_prospects upsert error:", prospectsErr.message);
@@ -714,6 +911,8 @@ serve(async (_req) => {
         live_ahl_roster_synced: liveRosterLoaded,
         live_ahl_roster_player_count: liveRosterPlayerCount,
         live_ahl_roster_write_errors: liveRosterWriteErrors,
+        player_stats_recomputed: playerStatsRecomputed,
+        player_stats_recompute_errors: playerStatsRecomputeErrors,
         live_standings_synced: liveStandingsLoaded,
         standings_rows_written: standingsWritten,
         sharks_nhl_count: sharksPlayers.length,

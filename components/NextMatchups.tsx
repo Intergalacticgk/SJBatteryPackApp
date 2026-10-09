@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, ScrollView, ActivityIndicator } from 'react-native';
 import { supabase } from '../supabase';
 import { useAppTheme } from '../context/ThemeContext';
+import { SJ_THEME } from './MatchReportModal';
 
 interface GameScheduleItem {
   id: string;
@@ -12,6 +13,7 @@ interface GameScheduleItem {
   home_away: 'HOME' | 'AWAY';
   venue?: string;
   theme_night?: string;
+  preview_text?: string | null;
 }
 
 interface TeamTheme {
@@ -154,6 +156,13 @@ export default function NextMatchups() {
                     </Text>
                   ) : null}
                 </View>
+
+                {game.preview_text ? (
+                  <View style={[styles.previewBox, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}>
+                    <Text style={[styles.previewLabel, { color: theme.accentGold }]}>MATCHUP PREVIEW</Text>
+                    <Text style={[styles.previewText, { color: theme.text }]}>{game.preview_text}</Text>
+                  </View>
+                ) : null}
               </View>
             );
           })}
@@ -170,7 +179,7 @@ const styles = StyleSheet.create({
   leagueTag: { fontSize: 10, fontWeight: '700' },
   loaderBox: { height: 140, justifyContent: 'center', alignItems: 'center' },
   scrollList: { gap: 10 },
-  matchupCard: { width: 220, borderRadius: 14, padding: 12, borderWidth: 1 },
+  matchupCard: { width: 260, borderRadius: 14, padding: 12, borderWidth: 1 },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   badge: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
   homeBadge: { backgroundColor: '#00424A', borderWidth: 1, borderColor: '#FFB800' },
@@ -180,7 +189,7 @@ const styles = StyleSheet.create({
   teamsRow: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', marginVertical: 4 },
   teamCol: { alignItems: 'center', width: 75 },
   teamCircle: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', borderWidth: 2, marginBottom: 4 },
-  sjCircle: { backgroundColor: '#266B73', borderColor: '#000000' },
+  sjCircle: { backgroundColor: SJ_THEME.bg, borderColor: SJ_THEME.border },
   sjCircleText: { color: '#FFFFFF', fontWeight: '900', fontSize: 14 },
   teamCircleText: { fontWeight: '900', fontSize: 13 },
   teamLabel: { fontSize: 11, fontWeight: '800', textAlign: 'center' },
@@ -189,4 +198,7 @@ const styles = StyleSheet.create({
   timeText: { fontSize: 10, fontWeight: '700' },
   venueText: { fontSize: 9 },
   themeText: { fontSize: 9, fontWeight: '700' },
+  previewBox: { marginTop: 8, padding: 8, borderRadius: 8, borderWidth: 1 },
+  previewLabel: { fontSize: 8, fontWeight: '900', letterSpacing: 0.5, marginBottom: 3 },
+  previewText: { fontSize: 10, fontWeight: '500', lineHeight: 14 },
 });

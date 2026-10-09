@@ -9,17 +9,23 @@ import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from 'expo-av';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../supabase';
 import LiveScoresOptInModal from '../components/LiveScoresOptInModal';
+import { getActiveChatRoom } from '../utils/chatPresence';
 
 const LIVE_SCORES_PROMPT_KEY = 'liveScoresPromptShown';
 
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
+  handleNotification: async (notification) => {
+    // Don't banner a chat message for the room the user is already reading.
+    const data: any = notification.request.content.data;
+    const viewingThisRoom = !!data?.roomId && data.roomId === getActiveChatRoom();
+    return {
+      shouldShowAlert: !viewingThisRoom,
+      shouldPlaySound: !viewingThisRoom,
+      shouldSetBadge: false,
+      shouldShowBanner: !viewingThisRoom,
+      shouldShowList: true,
+    };
+  },
 });
 
 async function registerForPushNotificationsAsync() {
@@ -70,6 +76,24 @@ const notificationListener = useRef<Notifications.EventSubscription | null>(null
 const responseListener = useRef<Notifications.EventSubscription | null>(null);
 const [deviceToken, setDeviceToken] = useState<string | null>(null);
 const [showLiveScoresPrompt, setShowLiveScoresPrompt] = useState(false);
+
+  // Link this device's push token to the signed-in user so chat notifications
+  // skip the sender's own device. Cleared on sign-out.
+  useEffect(() => {
+    if (!deviceToken) return;
+    const link = async (userId: string | null) => {
+      const { error } = await supabase
+        .from('push_tokens')
+        .update({ user_id: userId, updated_at: new Date().toISOString() })
+        .eq('token', deviceToken);
+      if (error) console.warn('Error linking push token to user:', error.message);
+    };
+    supabase.auth.getSession().then(({ data: { session } }) => link(session?.user?.id ?? null));
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      link(session?.user?.id ?? null);
+    });
+    return () => sub.subscription.unsubscribe();
+  }, [deviceToken]);
 
 const handleLiveScoresChoice = async (turnOn: boolean) => {
   setShowLiveScoresPrompt(false);
@@ -131,6 +155,11 @@ const handleLiveScoresChoice = async (turnOn: boolean) => {
               notify_live_scores: false,
               notify_gameday_reminders: true,
               notify_events: true,
+              // Chat notifications are opt-in; the chat screen asks once.
+              notify_chat_general: false,
+              notify_chat_watch_parties: false,
+              notify_chat_merch: false,
+              notify_chat_sharks: false,
               updated_at: new Date().toISOString(),
             });
             if (error) console.warn('Supabase push_tokens insert error:', error.message);
@@ -149,7 +178,11 @@ const handleLiveScoresChoice = async (turnOn: boolean) => {
     responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
       const data = response.notification.request.content.data;
       if (data?.screen) {
-        router.push(data.screen as any);
+        if (data?.roomId) {
+          router.push({ pathname: data.screen as any, params: { roomId: String(data.roomId) } });
+        } else {
+          router.push(data.screen as any);
+        }
       }
     });
 

@@ -75,6 +75,10 @@ export default function AccountScreen() {
   const [notifyLiveScores, setNotifyLiveScores] = useState(false);
   const [notifyGamedayReminders, setNotifyGamedayReminders] = useState(true);
   const [notifyEvents, setNotifyEvents] = useState(true);
+  const [notifyChatGeneral, setNotifyChatGeneral] = useState(false);
+  const [notifyChatWatchParties, setNotifyChatWatchParties] = useState(false);
+  const [notifyChatMerch, setNotifyChatMerch] = useState(false);
+  const [notifyChatSharks, setNotifyChatSharks] = useState(false);
   const [deviceToken, setDeviceToken] = useState<string | null>(null);
 
   useEffect(() => {
@@ -84,11 +88,15 @@ export default function AccountScreen() {
         const tokenData = await Notifications.getExpoPushTokenAsync({ projectId }).catch(() => null);
         if (tokenData?.data) {
           setDeviceToken(tokenData.data);
-          const { data } = await supabase.from('push_tokens').select('notify_live_scores, notify_gameday_reminders, notify_events').eq('token', tokenData.data).single();
+          const { data } = await supabase.from('push_tokens').select('notify_live_scores, notify_gameday_reminders, notify_events, notify_chat_general, notify_chat_watch_parties, notify_chat_merch, notify_chat_sharks').eq('token', tokenData.data).single();
           if (data) {
             setNotifyLiveScores(data.notify_live_scores ?? false);
             setNotifyGamedayReminders(data.notify_gameday_reminders ?? true);
             setNotifyEvents(data.notify_events ?? true);
+            setNotifyChatGeneral(data.notify_chat_general ?? false);
+            setNotifyChatWatchParties(data.notify_chat_watch_parties ?? false);
+            setNotifyChatMerch(data.notify_chat_merch ?? false);
+            setNotifyChatSharks(data.notify_chat_sharks ?? false);
           }
         }
       } catch (e) {}
@@ -690,6 +698,64 @@ export default function AccountScreen() {
                   <Switch
                     value={notifyEvents}
                     onValueChange={(val) => { setNotifyEvents(val); handleUpdatePref('notify_events', val); }}
+                    thumbColor={theme.accentGold}
+                    trackColor={{ false: '#CCD6D8', true: '#00424A' }}
+                  />
+                </View>
+
+                <View style={{ height: 1, backgroundColor: theme.borderColor, marginTop: 16, marginBottom: 12 }} />
+                <Text style={[styles.label, { color: theme.text, marginBottom: 2 }]}>💬 Supporter Chat</Text>
+                <Text style={[styles.hintText, { color: theme.subText, marginBottom: 12, textAlign: 'left', marginTop: 0 }]}>
+                  Get a push with a quick preview whenever someone posts in a chat room. Turn on the rooms you want to follow.
+                </Text>
+
+                <View style={styles.switchRow}>
+                  <View style={{ flex: 1, paddingRight: 10 }}>
+                    <Text style={[styles.label, { color: theme.text, marginBottom: 2 }]}>🗣️ General</Text>
+                    <Text style={{ color: theme.subText, fontSize: 11 }}>Live reactions from Tech CU Arena</Text>
+                  </View>
+                  <Switch
+                    value={notifyChatGeneral}
+                    onValueChange={(val) => { setNotifyChatGeneral(val); handleUpdatePref('notify_chat_general', val); }}
+                    thumbColor={theme.accentGold}
+                    trackColor={{ false: '#CCD6D8', true: '#00424A' }}
+                  />
+                </View>
+
+                <View style={[styles.switchRow, { marginTop: 12 }]}>
+                  <View style={{ flex: 1, paddingRight: 10 }}>
+                    <Text style={[styles.label, { color: theme.text, marginBottom: 2 }]}>🍻 Watch Parties</Text>
+                    <Text style={{ color: theme.subText, fontSize: 11 }}>Away game meetups & bar spots</Text>
+                  </View>
+                  <Switch
+                    value={notifyChatWatchParties}
+                    onValueChange={(val) => { setNotifyChatWatchParties(val); handleUpdatePref('notify_chat_watch_parties', val); }}
+                    thumbColor={theme.accentGold}
+                    trackColor={{ false: '#CCD6D8', true: '#00424A' }}
+                  />
+                </View>
+
+                <View style={[styles.switchRow, { marginTop: 12 }]}>
+                  <View style={{ flex: 1, paddingRight: 10 }}>
+                    <Text style={[styles.label, { color: theme.text, marginBottom: 2 }]}>🎟️ Merch & Tickets</Text>
+                    <Text style={{ color: theme.subText, fontSize: 11 }}>Ticket exchanges and fan gear</Text>
+                  </View>
+                  <Switch
+                    value={notifyChatMerch}
+                    onValueChange={(val) => { setNotifyChatMerch(val); handleUpdatePref('notify_chat_merch', val); }}
+                    thumbColor={theme.accentGold}
+                    trackColor={{ false: '#CCD6D8', true: '#00424A' }}
+                  />
+                </View>
+
+                <View style={[styles.switchRow, { marginTop: 12 }]}>
+                  <View style={{ flex: 1, paddingRight: 10 }}>
+                    <Text style={[styles.label, { color: theme.text, marginBottom: 2 }]}>🦈 Sharks</Text>
+                    <Text style={{ color: theme.subText, fontSize: 11 }}>All things San Jose Sharks</Text>
+                  </View>
+                  <Switch
+                    value={notifyChatSharks}
+                    onValueChange={(val) => { setNotifyChatSharks(val); handleUpdatePref('notify_chat_sharks', val); }}
                     thumbColor={theme.accentGold}
                     trackColor={{ false: '#CCD6D8', true: '#00424A' }}
                   />

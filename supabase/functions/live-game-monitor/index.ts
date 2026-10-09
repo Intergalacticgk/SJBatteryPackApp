@@ -214,6 +214,13 @@ Deno.serve(async (_req) => {
     if (isFinal && state.status === 'final') {
       const mapped = mapGamecenterSummary(summary, isHomeCuda, todayGame.opponent_abbr || 'OPP');
       if (mapped) {
+        // Keep the per-player box score sync-scores already stored on this
+        // game (stats.playerStats). This mapper doesn't produce it, and
+        // overwriting stats without it every 2 minutes would intermittently
+        // wipe it — which zeroes Barracuda player stats on the next hourly
+        // sync-ahl-stats recompute.
+        const existingPlayerStats = (todayGame as any).stats?.playerStats;
+        if (existingPlayerStats) (mapped as any).playerStats = existingPlayerStats;
         scheduleUpdate.stats = mapped;
         statsWritten = true;
       }

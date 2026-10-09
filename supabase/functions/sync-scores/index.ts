@@ -111,6 +111,54 @@ function mapGamecenterSummary(
     threeStars,
   };
 }
+// Extracts the San Jose Barracuda's own per-player box score line from a
+// FINAL game's gamecenter feed — the authoritative, verified source
+// (confirmed live against the Oct 3 2026 home opener, game_id 1029087)
+// used by sync-ahl-stats to rebuild `barracuda_roster` stats from scratch
+// every run, instead of trusting HockeyTech's cumulative (preseason-
+// included) "roster" statviewfeed. Only SJ's own players are kept — the
+// opponent's lineup isn't needed here.
+function extractSJPlayerStats(gc: any, isSJHome: boolean): any[] {
+  const lineup = isSJHome ? gc.home_team_lineup : gc.visitor_team_lineup;
+  const goalieDecisions = isSJHome ? gc.goalies?.home : gc.goalies?.visitor;
+  const decisionByPlayerId = new Map<string, any>(
+    (goalieDecisions || []).map((g: any) => [String(g.player_id || ""), g])
+  );
+
+  const skaters = (lineup?.players || []).map((p: any) => ({
+    player_id: String(p.player_id || ""),
+    name: formatPlayerName(p),
+    jersey_number: p.jersey_number || "",
+    position: p.position_str || "",
+    is_goalie: false,
+    goals: Number(p.goals || 0),
+    assists: Number(p.assists || 0),
+    // plusminus — confirmed live field name, no underscore.
+    plus_minus: Number(p.plusminus || 0),
+    pim: Number(p.pim || 0),
+  }));
+
+  const goalies = (lineup?.goalies || []).map((g: any) => {
+    const dec = decisionByPlayerId.get(String(g.player_id || "")) || {};
+    return {
+      player_id: String(g.player_id || ""),
+      name: formatPlayerName(g),
+      jersey_number: g.jersey_number || "",
+      position: "G",
+      is_goalie: true,
+      seconds: Number(g.seconds || 0),
+      shots_against: Number(g.shots_against || 0),
+      goals_against: Number(g.goals_against || 0),
+      saves: Number(g.saves || 0),
+      win: dec.win === "1",
+      loss: dec.loss === "1",
+      ot_loss: dec.ot_loss === "1",
+      shootout_loss: dec.shootout_loss === "1",
+    };
+  });
+
+  return [...skaters, ...goalies];
+}
 // --- end ported block ---
 
 serve(async (_req) => {
@@ -187,7 +235,10 @@ serve(async (_req) => {
           const isSJHome = game.home_away === "HOME";
           const oppAbbr = game.opponent_abbr || "OPP";
           const mapped = mapGamecenterSummary(gc, isSJHome, oppAbbr);
-          if (mapped) updatePayload.stats = mapped;
+          if (mapped) {
+            mapped.playerStats = extractSJPlayerStats(gc, isSJHome);
+            updatePayload.stats = mapped;
+          }
         }
 
         // Matched by game_id (our own schedule table's key), not a fuzzy

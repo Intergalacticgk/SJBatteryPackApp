@@ -74,7 +74,7 @@ export default function HomeScreen() {
   };
 
   const getCalculatedDoorTimes = (timeStr?: string) => {
-    if (!timeStr) return { memberTime: '1:45 PM', generalTime: '2:00 PM' };
+    if (!timeStr) return { memberTime: '2:00 PM', generalTime: '2:15 PM' };
     
     let hours = 15;
     let minutes = 0;
@@ -96,8 +96,10 @@ export default function HomeScreen() {
     const gameDateObj = new Date();
     gameDateObj.setHours(hours, minutes, 0, 0);
 
-    const memberDate = new Date(gameDateObj.getTime() - 75 * 60 * 1000);
-    const generalDate = new Date(gameDateObj.getTime() - 60 * 60 * 1000);
+    // Early gate for Co-Branded Card Holders & Season Ticket Members opens
+    // 60 min before puck drop; general public doors open 45 min before.
+    const memberDate = new Date(gameDateObj.getTime() - 60 * 60 * 1000);
+    const generalDate = new Date(gameDateObj.getTime() - 45 * 60 * 1000);
 
     const formatTimeObj = (d: Date) => {
       let h = d.getHours();
@@ -177,9 +179,38 @@ export default function HomeScreen() {
     }
   }, []);
 
+  // Pull-to-refresh previously only re-read whatever was already sitting in
+  // Supabase (fetchNextMatchupAndEvents + a refreshKey bump to remount the
+  // child cards) — it never actually talked to HockeyTech/NHL, so a manual
+  // pull looked identical to just waiting for the next hourly cron tick.
+  // Now it calls the same edge functions the cron schedules call directly,
+  // so standings/scores/stats are genuinely re-synced from the live feeds
+  // on demand, then re-reads Supabase once that's done.
+  const SYNC_AHL_STATS_URL = 'https://esagmbctmupjijkcexht.supabase.co/functions/v1/sync-ahl-stats';
+  const SYNC_SCORES_URL = 'https://esagmbctmupjijkcexht.supabase.co/functions/v1/sync-scores';
+  const SYNC_PROSPECT_STATS_URL = 'https://esagmbctmupjijkcexht.supabase.co/functions/v1/sync-prospect-stats';
+
+  // POST with a client-side timeout so a slow feed can never leave the
+  // pull-to-refresh spinner hanging (the server keeps working regardless).
+  const postWithTimeout = (url: string, ms = 25000) => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), ms);
+    return fetch(url, { method: 'POST', signal: controller.signal }).finally(() => clearTimeout(timer));
+  };
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
+      // Fire all live syncs in parallel: scores, AHL stats + standings,
+      // and NHL/prospect player stats. None requires a JWT (same as the
+      // cron jobs that call them), and a failure on any one is swallowed —
+      // pull-to-refresh still falls back to whatever's in Supabase rather
+      // than leaving the screen stuck if HockeyTech/NHL is slow or down.
+      await Promise.allSettled([
+        postWithTimeout(SYNC_SCORES_URL),
+        postWithTimeout(SYNC_AHL_STATS_URL),
+        postWithTimeout(SYNC_PROSPECT_STATS_URL),
+      ]);
       await fetchNextMatchupAndEvents(true);
       setRefreshKey((prev) => prev + 1);
     } catch (err) {
@@ -216,10 +247,10 @@ export default function HomeScreen() {
             <View style={[styles.infoBox, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}>
               <Text style={[styles.infoTitle, { color: theme.accentGold }]}>🕒 Gameday Entry & Gate Times</Text>
               <Text style={[styles.infoBody, { color: theme.text }]}>
-                • <Text style={[styles.boldText, { color: theme.accentGold }]}>{doorTimes.memberTime}</Text> – Co-Branded Card Holders & Season Ticket Members early gate entry opens.
+                • <Text style={[styles.boldText, { color: theme.accentGold }]}>{doorTimes.memberTime}</Text> – Co-Branded Card Holders & Season Ticket Members early gate access opens 60 minutes before puck drop.
               </Text>
               <Text style={[styles.infoBody, { color: theme.text }]}>
-                • <Text style={[styles.boldText, { color: theme.accentGold }]}>{doorTimes.generalTime}</Text> – General Public doors open across Tech CU Arena access channels.
+                • <Text style={[styles.boldText, { color: theme.accentGold }]}>{doorTimes.generalTime}</Text> – General Public doors open across Tech CU Arena access channels 45 minutes before puck drop.
               </Text>
               <Text style={[styles.infoBody, { color: theme.text }]}>
                 • <Text style={[styles.boldText, { color: theme.accentGold }]}>Puck Drop</Text> – Scheduled for <Text style={[styles.boldText, { color: theme.accentOrange }]}>{formatGameTimeDisplay(nextGame?.game_time)}</Text> vs {nextGame?.opponent || 'Opponent'}.

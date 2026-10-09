@@ -16,13 +16,19 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Image } from 'expo-image';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import { decode } from 'base64-arraybuffer';
+import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../../supabase';
+import ChatNotificationsOptInModal from '../../components/ChatNotificationsOptInModal';
 import { useAppTheme } from '../../context/ThemeContext';
+import { setActiveChatRoom } from '../../utils/chatPresence';
 
+const CHAT_NOTIF_PROMPT_KEY = 'chatNotificationsPromptShown';
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const GIF_WIDTH = (SCREEN_WIDTH - 48) / 2;
 
@@ -45,7 +51,7 @@ const ROOMS = [
   { id: 'general', title: '🗣️ General', desc: 'Live reactions from Tech CU Arena' },
   { id: 'watch-parties', title: '🍻 Watch Parties', desc: 'Away game meetups & bar spots' },
   { id: 'merch', title: '🎟️ Merch & Tickets', desc: 'Ticket exchanges and fan gear' },
-  { id: 'prospects', title: '⭐ Prospect Talk', desc: 'Sharks & Cuda prospect development' },
+  { id: 'sharks', title: '🦈 Sharks', desc: 'All things San Jose Sharks' },
 ];
 
 const GIPHY_QUICK_TAGS = [
@@ -76,7 +82,24 @@ export default function ChatScreen() {
   const [currentUserProfile, setCurrentUserProfile] = useState<any>(null);
   const [authChecking, setAuthChecking] = useState(true);
 
+  const { roomId: roomParam } = useLocalSearchParams<{ roomId?: string }>();
   const [activeRoom, setActiveRoom] = useState<string>('general');
+  const [showChatNotifPrompt, setShowChatNotifPrompt] = useState(false);
+
+  // Opening the chat from a push notification jumps straight to that room.
+  useEffect(() => {
+    if (roomParam && ROOMS.some((r) => r.id === roomParam)) {
+      setActiveRoom(roomParam);
+    }
+  }, [roomParam]);
+
+  // Tell the notification handler which room is on screen so it can skip the banner.
+  useFocusEffect(
+    useCallback(() => {
+      setActiveChatRoom(activeRoom);
+      return () => setActiveChatRoom(null);
+    }, [activeRoom])
+  );
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [inputText, setInputText] = useState('');
@@ -135,6 +158,48 @@ export default function ChatScreen() {
       };
     }, [])
   );
+
+  // Ask once (first time a signed-in user opens chat) whether to turn on chat push notifications.
+  useEffect(() => {
+    if (!session?.user) return;
+    let cancelled = false;
+    AsyncStorage.getItem(CHAT_NOTIF_PROMPT_KEY).then((shown) => {
+      if (!cancelled && !shown) setShowChatNotifPrompt(true);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [session?.user?.id]);
+
+  const handleChatNotifChoice = async (turnOn: boolean) => {
+    setShowChatNotifPrompt(false);
+    await AsyncStorage.setItem(CHAT_NOTIF_PROMPT_KEY, '1').catch(() => {});
+    if (!turnOn) return;
+    try {
+      const perm = await Notifications.getPermissionsAsync();
+      let status = (perm as any).status;
+      if (status !== 'granted') {
+        status = ((await Notifications.requestPermissionsAsync()) as any).status;
+      }
+      if (status !== 'granted') {
+        Alert.alert('Notifications are off', 'Turn on notifications for SJ Battery Pack in your phone settings to get chat alerts.');
+        return;
+      }
+      const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? 'd4824861-c576-4382-91d9-c7ef0f26cf5f';
+      const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
+      const { error } = await supabase
+        .from('push_tokens')
+        .update({
+          notify_chat_general: true,
+          notify_chat_watch_parties: true,
+          notify_chat_merch: true,
+          notify_chat_sharks: true,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('token', tokenData.data);
+      if (error) console.warn('Error enabling chat notifications:', error.message);
+    } catch (e) {
+      console.warn('Error enabling chat notifications:', e);
+    }
+  };
 
   const fetchCurrentUserProfile = async (userId: string) => {
     const { data } = await supabase
@@ -677,6 +742,7 @@ export default function ChatScreen() {
           </View>
         </View>
       </Modal>
+      <ChatNotificationsOptInModal visible={showChatNotifPrompt} onChoice={handleChatNotifChoice} />
     </SafeAreaView>
   );
 }

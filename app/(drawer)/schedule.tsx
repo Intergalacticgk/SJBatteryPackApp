@@ -14,9 +14,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { supabase } from '../../supabase';
 import { useAppTheme } from '../../context/ThemeContext';
+import MatchReportModal, { GameStats, SJ_THEME, mapGamecenterSummary } from '../../components/MatchReportModal';
+
+const GC_BASE = 'https://lscluster.hockeytech.com/feed/index.php?feed=gc&tab=gamesummary';
+const GC_KEY = 'ccb91f29d6744675';
 
 export interface GameScheduleItem {
   id: string;
+  game_id?: string | null;
   game_date: string;
   date_display: string;
   game_time: string;
@@ -29,6 +34,7 @@ export interface GameScheduleItem {
   status?: string | null;
   home_score?: number | null;
   away_score?: number | null;
+  stats?: GameStats | null;
 }
 
 interface MonthGroup {
@@ -49,6 +55,14 @@ export default function ScheduleScreen() {
   const [expandedMonths, setExpandedMonths] = useState<Record<string, boolean>>({});
   const [selectedGame, setSelectedGame] = useState<GameScheduleItem | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
+
+  // Match Report & Stats popup — same box score shown on the Home screen's
+  // Last Encounter card, available here for any FINAL game so a fan who
+  // missed it can pull up the stats from the schedule itself.
+  const [reportGame, setReportGame] = useState<GameScheduleItem | null>(null);
+  const [reportStats, setReportStats] = useState<GameStats | null>(null);
+  const [reportLoading, setReportLoading] = useState(false);
+  const [reportModalVisible, setReportModalVisible] = useState(false);
 
   const fetchScheduleAndEvents = async (isMounted = true) => {
     try {
@@ -83,6 +97,7 @@ export default function ScheduleScreen() {
 
             return {
               id: String(item.id || Math.random()),
+              game_id: item.game_id || null,
               game_date: gameDate,
               date_display: item.date_display || gameDate,
               game_time: item.game_time || '7:00 PM',
@@ -95,6 +110,7 @@ export default function ScheduleScreen() {
               status: item.status || null,
               home_score: item.home_score ?? null,
               away_score: item.away_score ?? null,
+              stats: item.stats || null,
             };
           });
 
@@ -126,6 +142,33 @@ export default function ScheduleScreen() {
   const openAwayActionModal = (game: GameScheduleItem) => {
     setSelectedGame(game);
     setModalVisible(true);
+  };
+
+  const openMatchReport = async (game: GameScheduleItem) => {
+    setReportGame(game);
+    setReportModalVisible(true);
+
+    if (game.stats) {
+      setReportStats(game.stats);
+      return;
+    }
+
+    setReportStats(null);
+    if (!game.game_id) return;
+
+    setReportLoading(true);
+    try {
+      const url = `${GC_BASE}&key=${GC_KEY}&client_code=ahl&game_id=${game.game_id}`;
+      const res = await fetch(url);
+      const json = await res.json();
+      const gc = json?.GC?.Gamesummary;
+      const mapped = mapGamecenterSummary(gc, game.is_home, game.opponent_abbr);
+      if (mapped) setReportStats(mapped);
+    } catch (err) {
+      console.warn('Gamecenter feed unavailable:', err);
+    } finally {
+      setReportLoading(false);
+    }
   };
 
   const filteredGames = useMemo(() => {
@@ -343,7 +386,7 @@ export default function ScheduleScreen() {
                             </View>
 
                             <View style={styles.matchupRow}>
-                              <View style={[styles.teamCircle, { backgroundColor: '#266B73' }]}>
+                              <View style={[styles.teamCircle, { backgroundColor: SJ_THEME.bg, borderWidth: 2, borderColor: SJ_THEME.border }]}>
                                 <Text style={[styles.teamCircleText, { color: '#FFFFFF' }]}>SJ</Text>
                               </View>
 
@@ -379,6 +422,18 @@ export default function ScheduleScreen() {
                                 </View>
                               )}
                             </View>
+
+                            {isFinal && (
+                              <TouchableOpacity
+                                style={[styles.reportBar, { backgroundColor: theme?.cardBg || '#00262B', borderColor: theme?.accentGold || '#FFB800' }]}
+                                onPress={() => openMatchReport(game)}
+                                activeOpacity={0.8}
+                              >
+                                <Text style={[styles.reportBarText, { color: theme?.accentGold || '#FFB800' }]}>
+                                  📊 View Match Report & Stats
+                                </Text>
+                              </TouchableOpacity>
+                            )}
 
                             {hasAwayAction ? (
                               <TouchableOpacity
@@ -484,6 +539,26 @@ export default function ScheduleScreen() {
           </View>
         </View>
       </Modal>
+
+      <MatchReportModal
+        visible={reportModalVisible}
+        onClose={() => setReportModalVisible(false)}
+        opponentName={reportGame?.opponent || 'Opponent'}
+        opponentAbbr={reportGame?.opponent_abbr}
+        scoreSJ={
+          reportGame
+            ? (reportGame.is_home ? reportGame.home_score : reportGame.away_score) || 0
+            : 0
+        }
+        scoreOpp={
+          reportGame
+            ? (reportGame.is_home ? reportGame.away_score : reportGame.home_score) || 0
+            : 0
+        }
+        loading={reportLoading}
+        stats={reportStats}
+        gameFact={reportGame?.theme_night ? `Theme Night: ${reportGame.theme_night}` : null}
+      />
     </SafeAreaView>
   );
 }
@@ -544,6 +619,9 @@ const styles = StyleSheet.create({
 
   staticThemeBar: { padding: 8, borderRadius: 8, borderWidth: 1, marginTop: 4 },
   staticThemeText: { fontSize: 11, fontWeight: '700', lineHeight: 15 },
+
+  reportBar: { paddingVertical: 8, borderRadius: 8, borderWidth: 1, alignItems: 'center', marginTop: 4 },
+  reportBarText: { fontSize: 11, fontWeight: '900', letterSpacing: 0.3 },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'center', padding: 20 },
   modalCard: { borderRadius: 16, borderWidth: 1, padding: 18 },
