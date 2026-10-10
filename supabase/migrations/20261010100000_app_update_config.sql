@@ -18,5 +18,5 @@ create policy "app_update_config readable by everyone"
 -- latest_version = the newest build live in the store. Bump it after each store release.
 insert into public.app_update_config (platform, latest_version, store_url) values
   ('android', '2.1.21', 'https://play.google.com/store/apps/details?id=com.sjbatterypack.myapp'),
-  ('ios', '2.1.21', null)
+  ('ios', '2.1.21', 'https://apps.apple.com/gb/app/sj-battery-pack/id6802891352')
 on conflict (platform) do nothing;

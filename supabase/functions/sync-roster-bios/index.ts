@@ -1,11 +1,15 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-// Fills in / refreshes Barracuda player bio info (birthdate, birthplace, height,
-// weight, shoots/catches) from the HockeyTech AHL roster feed, matched by the
-// feed's own player_id (barracuda_roster.hockeytech_player_id). Also adds any
-// player who is on the live roster but missing from the table. Stats are owned
-// by sync-ahl-stats. Add ?debug=1 to preview without writing.
+// Keeps the Barracuda roster in step with the live HockeyTech AHL roster:
+//  - fills in / refreshes bio info (birthdate, birthplace, height, weight,
+//    shoots/catches), matched by the feed's player_id
+//    (barracuda_roster.hockeytech_player_id)
+//  - adds any player who is on the live roster but missing from the table
+//  - HIDES (on_roster = false, never deletes) players who are no longer on the
+//    live roster (called up / sent down), and un-hides them if they return.
+//    Called-up players appear on the Sharks tab via the NHL roster sync.
+// Stats are owned by sync-ahl-stats. Add ?debug=1 to preview without writing.
 // Confirmed live row shape: { player_id, name, tp_jersey_number, position,
 // shoots|catches, birthplace ("Laval, QC"), birthdate (ISO), height_hyphenated
 // ("6-0"), w (weight, lbs) }.
@@ -14,6 +18,12 @@ const AHL_KEY = "ccb91f29d6744675";
 const BARRACUDA_TEAM_ID = "405";
 const SEASON_IDS = ["94", "93"];
 const SEASON_LABEL = "2026-2027";
+
+// Safety rails for the hide step: only trust a full-looking roster, and never
+// hide a large share of the team in one run (a partial/odd feed shouldn't be
+// able to blank the roster).
+const MIN_FEED_PLAYERS_TO_HIDE = 20;
+const MAX_HIDE_PER_RUN = 12;
 
 function parseFeed(text: string): any {
   const t = text.trim();
@@ -76,6 +86,7 @@ serve(async (req) => {
       if (height) payload.height = height;
       if (weight) payload.weight = weight;
       if (shoots) payload.shoots_catches = shoots;
+      payload.on_roster = true;
 
       const { data, error } = await supabase
         .from("barracuda_roster")
@@ -102,7 +113,37 @@ serve(async (req) => {
       else added.push(`${r.name} (${pid})`);
     }
 
-    return new Response(JSON.stringify({ success: true, season: seasonUsed, feedPlayers: rows.length, rowsUpdated: updated, playersAdded: added, errors }), { headers: { "Content-Type": "application/json" } });
+    // Hide players who have left the live roster.
+    const hidden: string[] = [];
+    let hideSkipped = "";
+    if (rows.length < MIN_FEED_PLAYERS_TO_HIDE) {
+      hideSkipped = `feed has only ${rows.length} players (< ${MIN_FEED_PLAYERS_TO_HIDE}); not hiding anyone`;
+    } else {
+      const feedIds = new Set(rows.map((r) => String(r.player_id).trim()));
+      const { data: current, error: curErr } = await supabase
+        .from("barracuda_roster")
+        .select("id, name, hockeytech_player_id, on_roster")
+        .eq("season", SEASON_LABEL);
+      if (curErr) {
+        hideSkipped = `could not read roster table: ${curErr.message}`;
+      } else {
+        const toHide = (current || []).filter(
+          (p: any) => p.hockeytech_player_id && !feedIds.has(String(p.hockeytech_player_id)) && p.on_roster !== false,
+        );
+        if (toHide.length > MAX_HIDE_PER_RUN) {
+          hideSkipped = `${toHide.length} players would be hidden (> ${MAX_HIDE_PER_RUN}); skipped for safety`;
+        } else if (toHide.length > 0) {
+          const { error: hideErr } = await supabase
+            .from("barracuda_roster")
+            .update({ on_roster: false })
+            .in("id", toHide.map((p: any) => p.id));
+          if (hideErr) hideSkipped = hideErr.message;
+          else toHide.forEach((p: any) => hidden.push(p.name));
+        }
+      }
+    }
+
+    return new Response(JSON.stringify({ success: true, season: seasonUsed, feedPlayers: rows.length, rowsUpdated: updated, playersAdded: added, playersHidden: hidden, hideSkipped, errors }), { headers: { "Content-Type": "application/json" } });
   } catch (err: any) {
     return new Response(JSON.stringify({ error: err.message }), { status: 500 });
   }

@@ -113,12 +113,14 @@ export default function RosterScreen() {
         .from('barracuda_roster')
         .select('*')
         .eq('season', '2026-2027')
+        .eq('on_roster', true)
         .order('points', { ascending: false });
 
       if (error || !data || data.length === 0) {
         const fallback = await supabase
           .from('barracuda_roster')
           .select('*')
+          .eq('on_roster', true)
           .order('points', { ascending: false });
         data = fallback.data;
       }
