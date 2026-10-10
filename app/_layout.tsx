@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Platform, View } from 'react-native';
+import { AppState, Linking, Platform, View } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as Notifications from 'expo-notifications';
@@ -9,6 +9,8 @@ import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from 'expo-av';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../supabase';
 import { getActiveChatRoom } from '../utils/chatPresence';
+import UpdateAvailableModal from '../components/UpdateAvailableModal';
+import { checkForUpdate, UPDATE_DISMISSED_KEY, UpdateInfo } from '../utils/updateCheck';
 
 Notifications.setNotificationHandler({
   handleNotification: async (notification) => {
@@ -72,6 +74,32 @@ export default function RootLayout() {
 const notificationListener = useRef<Notifications.EventSubscription | null>(null);
 const responseListener = useRef<Notifications.EventSubscription | null>(null);
 const [deviceToken, setDeviceToken] = useState<string | null>(null);
+const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+
+  // Soft "new version available" prompt: checked on launch and whenever the app returns to the foreground.
+  useEffect(() => {
+    const run = async () => {
+      const info = await checkForUpdate();
+      if (info) setUpdateInfo(info);
+    };
+    run();
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') run();
+    });
+    return () => sub.remove();
+  }, []);
+
+  const dismissUpdate = async () => {
+    const v = updateInfo?.latestVersion;
+    setUpdateInfo(null);
+    if (v) await AsyncStorage.setItem(UPDATE_DISMISSED_KEY, v).catch(() => {});
+  };
+
+  const openStore = async () => {
+    const url = updateInfo?.storeUrl;
+    await dismissUpdate();
+    if (url) Linking.openURL(url).catch((e) => console.warn('Could not open store:', e));
+  };
 
   // Link this device's push token to the signed-in user so chat notifications
   // skip the sender's own device. Cleared on sign-out.
@@ -178,6 +206,14 @@ return (
       <Stack.Screen name="(drawer)" />
       {/* Add more Stack.Screen rows here */}
     </Stack>
+    <UpdateAvailableModal
+      visible={!!updateInfo}
+      title={updateInfo?.title ?? ''}
+      message={updateInfo?.message ?? ''}
+      latestVersion={updateInfo?.latestVersion ?? ''}
+      onUpdate={openStore}
+      onLater={dismissUpdate}
+    />
   </View>
 );
 }
