@@ -73,8 +73,15 @@ export default function HomeScreen() {
     return `${hours}:${minutesStr} ${ampm} PST`;
   };
 
-  const getCalculatedDoorTimes = (timeStr?: string) => {
-    if (!timeStr) return { memberTime: '2:00 PM', generalTime: '2:15 PM' };
+  // Giveaway nights open earlier: STH/Co-Branded 75 min and General 60 min before puck drop
+  // (e.g. 6:00 PM game -> 4:45 / 5:00). Regular games: 60 min / 45 min (7:00 PM -> 6:00 / 6:15).
+  const isGiveawayGame = (g?: { theme_night?: string; promo?: string } | null) =>
+    /giveaway/i.test(`${g?.theme_night ?? ''} ${g?.promo ?? ''}`);
+
+  const getCalculatedDoorTimes = (timeStr?: string, giveaway: boolean = false) => {
+    const memberMins = giveaway ? 75 : 60;
+    const generalMins = giveaway ? 60 : 45;
+    if (!timeStr) return { memberTime: '2:00 PM', generalTime: '2:15 PM', memberMins, generalMins };
     
     let hours = 15;
     let minutes = 0;
@@ -96,10 +103,9 @@ export default function HomeScreen() {
     const gameDateObj = new Date();
     gameDateObj.setHours(hours, minutes, 0, 0);
 
-    // Early gate for Co-Branded Card Holders & Season Ticket Members opens
-    // 60 min before puck drop; general public doors open 45 min before.
-    const memberDate = new Date(gameDateObj.getTime() - 60 * 60 * 1000);
-    const generalDate = new Date(gameDateObj.getTime() - 45 * 60 * 1000);
+    // Early gate for Co-Branded Card Holders & Season Ticket Members, then General doors.
+    const memberDate = new Date(gameDateObj.getTime() - memberMins * 60 * 1000);
+    const generalDate = new Date(gameDateObj.getTime() - generalMins * 60 * 1000);
 
     const formatTimeObj = (d: Date) => {
       let h = d.getHours();
@@ -111,7 +117,9 @@ export default function HomeScreen() {
 
     return {
       memberTime: formatTimeObj(memberDate),
-      generalTime: formatTimeObj(generalDate)
+      generalTime: formatTimeObj(generalDate),
+      memberMins,
+      generalMins,
     };
   };
 
@@ -233,7 +241,8 @@ export default function HomeScreen() {
     setInfoModalVisible(true);
   };
 
-  const doorTimes = getCalculatedDoorTimes(nextGame?.game_time || '');
+  const giveawayNight = isGiveawayGame(nextGame);
+  const doorTimes = getCalculatedDoorTimes(nextGame?.game_time || '', isGiveawayGame(nextGame));
 
   const renderTabContent = () => {
     switch (activeTab) {
@@ -247,10 +256,10 @@ export default function HomeScreen() {
             <View style={[styles.infoBox, { backgroundColor: theme.subCardBg, borderColor: theme.borderColor }]}>
               <Text style={[styles.infoTitle, { color: theme.accentGold }]}>🕒 Gameday Entry & Gate Times</Text>
               <Text style={[styles.infoBody, { color: theme.text }]}>
-                • <Text style={[styles.boldText, { color: theme.accentGold }]}>{doorTimes.memberTime}</Text> – Co-Branded Card Holders & Season Ticket Members early gate access opens 60 minutes before puck drop.
+                • <Text style={[styles.boldText, { color: theme.accentGold }]}>{doorTimes.memberTime}</Text> – Co-Branded Card Holders & Season Ticket Members early gate access opens {doorTimes.memberMins} minutes before puck drop{giveawayNight ? ' (giveaway night)' : ''}.
               </Text>
               <Text style={[styles.infoBody, { color: theme.text }]}>
-                • <Text style={[styles.boldText, { color: theme.accentGold }]}>{doorTimes.generalTime}</Text> – General Public doors open across Tech CU Arena access channels 45 minutes before puck drop.
+                • <Text style={[styles.boldText, { color: theme.accentGold }]}>{doorTimes.generalTime}</Text> – General Public doors open across Tech CU Arena access channels {doorTimes.generalMins} minutes before puck drop{giveawayNight ? ' (giveaway night)' : ''}.
               </Text>
               <Text style={[styles.infoBody, { color: theme.text }]}>
                 • <Text style={[styles.boldText, { color: theme.accentGold }]}>Puck Drop</Text> – Scheduled for <Text style={[styles.boldText, { color: theme.accentOrange }]}>{formatGameTimeDisplay(nextGame?.game_time)}</Text> vs {nextGame?.opponent || 'Opponent'}.
