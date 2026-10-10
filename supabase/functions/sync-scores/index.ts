@@ -180,7 +180,7 @@ serve(async (_req) => {
 
     const fmt = (d: Date) => d.toLocaleDateString("sv-SE");
 
-    const { data: games, error } = await supabase
+    const { data: windowGames, error } = await supabase
       .from("schedule")
       .select("*")
       .neq("status", "FINAL")
@@ -190,10 +190,34 @@ serve(async (_req) => {
 
     if (error) throw error;
 
+    // BACKFILL: live-game-monitor marks a game FINAL (and saves the team box
+    // score) the moment it ends, but it has no per-player lines. Because the
+    // query above skips FINAL games, those games never got stats.playerStats,
+    // which is what sync-ahl-stats sums to build every player's season line —
+    // so roster stats/GP went stale after the first game. Pick up any FINAL
+    // regular-season game that is still missing player stats (capped per run).
+    // Preseason games are deliberately excluded: player season lines must stay
+    // regular-season only.
+    const { data: finalGames, error: finalErr } = await supabase
+      .from("schedule")
+      .select("*")
+      .eq("status", "FINAL")
+      .not("game_id", "is", null);
+
+    if (finalErr) throw finalErr;
+
+    const needsPlayerStats = (finalGames || [])
+      .filter((g: any) => !/preseason/i.test(String(g.theme_night || "")))
+      .filter((g: any) => !Array.isArray(g.stats?.playerStats) || g.stats.playerStats.length === 0)
+      .slice(0, 10);
+
+    const games = [...(windowGames || []), ...needsPlayerStats];
+
     const results: any[] = [];
 
-    for (const game of games || []) {
+    for (const game of games) {
       try {
+        const backfill = game.status === "FINAL";
         const url =
           "https://lscluster.hockeytech.com/feed/index.php?feed=gc&tab=gamesummary&game_id=" +
           game.game_id +
@@ -222,6 +246,12 @@ serve(async (_req) => {
         const hoursSinceStart = (Date.now() - gameDateTime.getTime()) / 3_600_000;
 
         const isFinal = statusText.includes("final") || metaFinal || hoursSinceStart > 5;
+
+        // A backfill must never flip an already-FINAL game back to another status.
+        if (backfill && !isFinal) {
+          results.push({ game_id: game.game_id, skipped: "backfill: feed does not show final" });
+          continue;
+        }
 
         const status = isFinal ? "FINAL" : hoursSinceStart > 0 ? "IN_PROGRESS" : "SCHEDULED";
 
@@ -253,6 +283,7 @@ serve(async (_req) => {
         results.push({
           game_id: game.game_id,
           status,
+          backfill,
           home_score: homeGoals,
           away_score: visGoals,
           statsWritten: Boolean(isFinal && updatePayload.stats),
