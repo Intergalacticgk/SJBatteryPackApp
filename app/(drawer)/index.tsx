@@ -76,7 +76,7 @@ export default function HomeScreen() {
   // Giveaway nights open earlier: STH/Co-Branded 75 min and General 60 min before puck drop
   // (e.g. 6:00 PM game -> 4:45 / 5:00). Regular games: 60 min / 45 min (7:00 PM -> 6:00 / 6:15).
   const isGiveawayGame = (g?: { theme_night?: string; promo?: string } | null) =>
-    /giveaway/i.test(`${g?.theme_night ?? ''} ${g?.promo ?? ''}`);
+    /giveaway\s*:/i.test(`${g?.theme_night ?? ''} ${g?.promo ?? ''}`);
 
   const getCalculatedDoorTimes = (timeStr?: string, giveaway: boolean = false) => {
     const memberMins = giveaway ? 75 : 60;
@@ -446,7 +446,7 @@ export default function HomeScreen() {
               activeOpacity={0.85}
             >
               <Text style={styles.checkInButtonText}>
-                {isGameWindowOpen ? "🪸 Gameday Guide Active!" : "🏟️ View Know Before You Go"}
+                {isGameWindowOpen ? "🪸 Gameday Guide!" : "🏟️ View Know Before You Go"}
               </Text>
             </TouchableOpacity>
           </View>
